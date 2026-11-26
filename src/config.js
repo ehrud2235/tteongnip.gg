@@ -45,7 +45,7 @@ export function loadConfig(env = process.env) {
     allowedModes: list(env.ALLOWED_MODES || 'CLASSIC').map((m) => m.toUpperCase()),
     owMinPlayers: Math.max(2, Number(env.OW_MIN_PLAYERS) || 8),
     owMinDuration: Number(env.OW_MIN_GAME_SECONDS ?? 180) || 0,
-    owWorkshopCode: env.OW_WORKSHOP_CODE || 'NTEN4',
+    owWorkshopCode: env.OW_WORKSHOP_CODE || '2MXFB',
     warnings,
   };
 }
