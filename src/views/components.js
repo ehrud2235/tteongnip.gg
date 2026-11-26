@@ -135,3 +135,11 @@ export function fmtPlayTime(seconds) {
   if (m < 60) return `${m}분`;
   return `${Math.floor(m / 60)}시간 ${m % 60}분`;
 }
+
+/** 영웅 얼굴. 이미지 주소를 모르면 이름 글자로 보여준다. */
+export function heroIcon(owh, name, size = 28, { fallback = 'chip', cls = '' } = {}) {
+  const src = owh?.portrait(name);
+  if (src) return html`<img class="hi ${cls}" src="${src}" alt="${name}" title="${name}" width="${size}" height="${size}" loading="lazy">`;
+  if (fallback === 'none') return '';
+  return fallback === 'text' ? html`<small class="hero-text ${cls}" title="${name}">${name}</small>` : html`<span class="hero-chip">${name}</span>`;
+}

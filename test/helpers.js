@@ -154,7 +154,8 @@ export async function startApp(env = {}, { fetch } = {}) {
   const db = await openStore({ sqliteFile: ':memory:' });
   const ddragon = createDDragon({ fetch: async () => { throw new Error('offline'); }, log: quiet });
   ddragon._set({ champions: { 266: { id: 'Aatrox', name: '아트록스', tags: ['Fighter'] } } });
-  const app = createApp({ config, db, ddragon, fetch, log: quiet });
+  const owHeroes = { impl: null, portrait: (name) => owHeroes.impl?.portrait(name) ?? null };
+  const app = createApp({ config, db, ddragon, owHeroes, fetch, log: quiet });
   const server = http.createServer(app.handle);
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -163,6 +164,7 @@ export async function startApp(env = {}, { fetch } = {}) {
     app,
     db,
     config,
+    setOwHeroes: (impl) => (owHeroes.impl = impl),
     close: async () => {
       await app.drain();
       await new Promise((r) => server.close(r));

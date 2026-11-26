@@ -30,12 +30,19 @@ const HEROES = {
 };
 const KO_NAME = {};
 const KO_ROLE = {};
+const EN_NAME = {};
 for (const [role, heroes] of Object.entries(HEROES)) {
   for (const [en, ko] of Object.entries(heroes)) {
     KO_NAME[en] = ko;
     KO_NAME[en.toLowerCase()] = ko;
     KO_ROLE[ko] = role;
+    if (!EN_NAME[ko]) EN_NAME[ko] = en;
   }
+}
+
+/** 한국어 영웅 이름의 영어 이름 (모르면 null) */
+export function heroEnglish(name) {
+  return EN_NAME[heroName(name)] || null;
 }
 
 export function heroName(raw) {

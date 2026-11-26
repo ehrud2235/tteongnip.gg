@@ -4,6 +4,7 @@ import http from 'node:http';
 import { loadConfig } from '../src/config.js';
 import { openStore } from '../src/db/index.js';
 import { createDDragon } from '../src/ddragon.js';
+import { createOwHeroes } from '../src/ow-heroes.js';
 import { createApp } from '../src/app.js';
 import { normalizeGame } from '../src/game.js';
 import { normalizeOverwatch } from '../src/overwatch.js';
@@ -202,5 +203,7 @@ for (let i = 0; i < 25; i++) {
   else console.log('demo ow skipped:', r.reason);
 }
 
-const app = createApp({ config, db, ddragon });
+const owHeroes = createOwHeroes();
+await owHeroes.start();
+const app = createApp({ config, db, ddragon, owHeroes });
 http.createServer(app.handle).listen(config.port, () => console.log(`미리 보기: http://localhost:${config.port}`));

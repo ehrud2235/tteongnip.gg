@@ -2,6 +2,7 @@ import http from 'node:http';
 import { loadConfig } from './config.js';
 import { openStore } from './db/index.js';
 import { createDDragon } from './ddragon.js';
+import { createOwHeroes } from './ow-heroes.js';
 import { createApp } from './app.js';
 
 const config = loadConfig();
@@ -10,7 +11,9 @@ for (const w of config.warnings) console.warn(`[설정] ${w}`);
 const db = await openStore(config);
 const ddragon = createDDragon({ cacheDir: config.dataDir });
 ddragon.start();
-const app = createApp({ config, db, ddragon });
+const owHeroes = createOwHeroes({ cacheDir: config.dataDir });
+owHeroes.start();
+const app = createApp({ config, db, ddragon, owHeroes });
 
 const server = http.createServer((req, res) => app.handle(req, res));
 server.listen(config.port, () => {
@@ -23,6 +26,7 @@ server.listen(config.port, () => {
 async function shutdown() {
   server.close();
   ddragon.stop();
+  owHeroes.stop();
   await app.drain();
   await db.close();
   process.exit(0);

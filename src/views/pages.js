@@ -90,7 +90,7 @@ ${!config.authEnabled && !bare
 ${body}
 </main>
 <footer class="wrap foot">
-  <p>우리 디스코드 서버 전용 내전 기록 · 챔피언·아이템 이미지: Riot Games Data Dragon</p>
+  <p>우리 디스코드 서버 전용 내전 기록 · 롤 이미지: Riot Games Data Dragon · 오버워치 영웅 이미지: Blizzard Entertainment (OverFast API)</p>
   <p class="legal">${config.siteName} ${RIOT_NOTICE}</p>
 </footer>
 </body>

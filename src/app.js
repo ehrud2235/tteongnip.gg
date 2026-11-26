@@ -44,7 +44,8 @@ const CONTENT_TYPES = {
 
 const CSP = [
   "default-src 'self'",
-  "img-src 'self' data: https://ddragon.leagueoflegends.com https://raw.communitydragon.org https://cdn.discordapp.com",
+  // 영웅 얼굴 이미지 주소는 바뀔 수 있어서 https 이미지는 모두 허용한다 (스크립트는 우리 사이트 것만)
+  "img-src 'self' data: https:",
   "style-src 'self'",
   "script-src 'self'",
   "form-action 'self'",
@@ -126,7 +127,9 @@ export function collectorBat({ server, key }) {
   return lines.join('\r\n');
 }
 
-export function createApp({ config, db, ddragon, fetch = globalThis.fetch, log = console }) {
+const NO_HERO_IMAGES = { portrait: () => null };
+
+export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetch = globalThis.fetch, log = console }) {
   const discordAuth = createDiscordAuth({ config, fetch });
   const notifier = createNotifier({ config, fetch, log });
   const dates = makeDateFormat(config.timeZone);
@@ -200,6 +203,7 @@ export function createApp({ config, db, ddragon, fetch = globalThis.fetch, log =
       user,
       csrf: user ? csrfToken(user.uid, config.sessionSecret) : '',
       dd: ddragon,
+      owh: owHeroes,
       dates,
       data,
       assetVersion,

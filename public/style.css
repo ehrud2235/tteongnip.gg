@@ -339,3 +339,12 @@ textarea.code { display: block; width: 100%; margin: 8px 0 4px; background: var(
   .games { order: 4; }
   .games a { padding: 4px 10px; }
 }
+
+/* 오버워치 영웅 얼굴 */
+.hi { display: block; border-radius: 6px; background: var(--panel-2); object-fit: cover; flex: none; }
+.hero-cell { display: flex; align-items: center; gap: 8px; }
+.hero-more { display: flex; gap: 3px; margin-top: 2px; flex-wrap: wrap; }
+.hero-more .hi { border-radius: 4px; opacity: 0.85; }
+.hero-text { color: var(--muted); font-size: 11px; }
+.mc-team li .hi.mc-hero { margin-left: auto; border-radius: 4px; flex: none; min-width: 20px; }
+.highlights .hi { border-radius: 4px; }
