@@ -203,6 +203,7 @@ export function makeOwLog({
   sleeps = 1,
   complete = true,
   withStart = true,
+  obj = null,
 } = {}) {
   const lines = [];
   const at = (t, s) => {
@@ -235,6 +236,7 @@ export function makeOwLog({
       const envDeaths = name === '위도우' ? 1 : 0;
       at(t1, `TN,stat,${name},${team},${10 + i},${4 + (i % 3)},${3 + (i % 4)},${role === 2 ? 9000 + i * 100 : 4000},${role === 3 ? 8000 + i * 10 : 0},${role === 1 ? 12000 : 0},${2 + (i % 2)},${envKills},${envDeaths},1,7000,${5 + i},2`);
     });
+    if (obj) at(t1, `TN,obj,${obj}`);
     at(t1 + 1, `TN,end,${t1 + 1},${score[0]},${score[1]}`);
   }
   return lines.join('\r\n') + '\r\n';

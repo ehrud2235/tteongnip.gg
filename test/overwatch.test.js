@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { heroName, matchHighlights, normalizeOverwatch, parseLines } from '../src/overwatch.js';
+import { heroName, matchHighlights, normalizeOverwatch, owFormat, parseLines, setOwWinner } from '../src/overwatch.js';
 import { computeOwStats } from '../src/ow-stats.js';
-import { makeOwLog } from './helpers.js';
+import { makeOwLog, OW_TEAM1, OW_TEAM2 } from './helpers.js';
 
 test('워크샵 로그를 경기 기록으로 바꾼다', () => {
   const r = normalizeOverwatch(makeOwLog(), { playedAt: 1_700_000_000_000 });
@@ -98,4 +98,47 @@ test('오버워치 전적과 점수는 개인별로 쌓이고 칭호가 붙는�
   assert.equal(s.ranked.length, 10);
   assert.equal(s.heroes[0].games, 5);
   assert.equal(s.deltas.get(matches[0].id)['ow:아나장인'], 20);
+});
+
+test('호위·혼합처럼 팀 점수가 0 : 0이면 경기 끝 목표 상태로 승패를 정한다', () => {
+  // 1팀 공격, 화물 끝까지 → 1팀 승
+  let m = normalizeOverwatch(makeOwLog({ score: [0, 0], obj: '1,100,2,35,1' })).match;
+  assert.deepEqual([m.winner, m.winnerSource], [1, 'objective']);
+  // 1팀 공격, 화물 60%에서 시간 끝 → 2팀(수비) 승
+  m = normalizeOverwatch(makeOwLog({ score: [0, 0], obj: '1,60,1,0,1' })).match;
+  assert.deepEqual([m.winner, m.winnerSource], [2, 'objective']);
+  assert.ok(m.players.filter((p) => p.team === 2).every((p) => p.win));
+  // 점수가 다르면 점수가 우선
+  m = normalizeOverwatch(makeOwLog({ score: [1, 2], obj: '1,100,2,35,1' })).match;
+  assert.deepEqual([m.winner, m.winnerSource], [2, 'score']);
+  // 공격 팀을 모르면 승패 미정
+  m = normalizeOverwatch(makeOwLog({ score: [0, 0], obj: '0,0,0,0,1' })).match;
+  assert.equal(m.winner, 0);
+});
+
+test('5대5 / 6대6을 구분하고, 중간에 나간 사람도 인원에 센다', () => {
+  assert.equal(normalizeOverwatch(makeOwLog()).match.format, '5v5');
+  const six = normalizeOverwatch(makeOwLog({ team1: [...OW_TEAM1, ['여섯째', 1, '자리야']], team2: [...OW_TEAM2, ['육번', 1, '시그마']] })).match;
+  assert.deepEqual([six.format, six.teamSize], ['6v6', 6]);
+  // 6명이 영웅을 골랐지만 한 명은 끝나기 전에 나가서 개인 기록이 없음
+  const leaver = makeOwLog({ team1: [...OW_TEAM1, ['여섯째', 1, '자리야']], team2: [...OW_TEAM2, ['육번', 1, '시그마']] })
+    .split('\r\n')
+    .filter((l) => !l.includes('TN,stat,육번,'))
+    .join('\r\n');
+  const m = normalizeOverwatch(leaver).match;
+  assert.equal(m.players.length, 11);
+  assert.equal(m.format, '6v6');
+  // 예전 기록(format 없음)은 남은 사람 수로
+  assert.equal(owFormat({ players: [1, 1, 1, 1, 1, 1, 2].map((team) => ({ team })) }), '6v6');
+  assert.equal(owFormat({ players: [1, 1, 2, 2].map((team) => ({ team })) }), '5v5');
+});
+
+test('승패를 직접 정할 수 있다', () => {
+  const m = normalizeOverwatch(makeOwLog({ score: [0, 0] })).match;
+  assert.equal(m.winner, 0);
+  setOwWinner(m, 1);
+  assert.deepEqual([m.winner, m.winnerSource], [1, 'manual']);
+  assert.ok(m.players.every((p) => p.win === (p.team === 1) && !p.draw));
+  setOwWinner(m, 0);
+  assert.ok(m.players.every((p) => p.draw && !p.win));
 });

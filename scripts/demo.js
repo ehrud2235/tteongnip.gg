@@ -137,15 +137,20 @@ const OW_POOL = {
 const OW_MAPS = [['왕의 길', '혼합'], ['일리오스', '쟁탈'], ['66번 국도', '호위'], ['뉴 퀸 스트리트', '밀기'], ['부산', '쟁탈'], ['지브롤터', '호위']];
 const FAV = { 아나장인: '아나', 메르시빌런: '메르시', 루시우붐: '루시우', 겐지충: '겐지', 위도우장인: '위도우메이커', 라인장인: '라인하르트', 자리야누나: '자리야' };
 
-function makeOwDemoLog(i) {
+function makeOwDemoLog(i, six = false) {
   const byRole = (r) => shuffle(OW_PLAYERS.filter((p) => p[1] === r).map((p) => p[0]));
   const tanks = byRole(1);
   const dps = byRole(2);
   const sups = byRole(3);
-  const teams = [
-    [[tanks[0], 1], [dps[0], 2], [dps[1], 2], [sups[0], 3], [sups[1], 3]],
-    [[tanks[1], 1], [dps[2], 2], [dps[3], 2], [sups[2], 3], [sups[3], 3]],
-  ];
+  const teams = six
+    ? (() => {
+        const all12 = shuffle(OW_PLAYERS);
+        return [all12.slice(0, 6), all12.slice(6)].map((t) => t.map(([n, r]) => [n, r]));
+      })()
+    : [
+        [[tanks[0], 1], [dps[0], 2], [dps[1], 2], [sups[0], 3], [sups[1], 3]],
+        [[tanks[1], 1], [dps[2], 2], [dps[3], 2], [sups[2], 3], [sups[3], 3]],
+      ];
   const [map, mode] = pick(OW_MAPS);
   const t0 = 40;
   const t1 = t0 + 600 + Math.floor(rand() * 600);
@@ -196,9 +201,9 @@ function makeOwDemoLog(i) {
   return lines.join('\n');
 }
 for (const n of OW_PLAYERS) skill[n[0]] = 0.35 + rand() * 0.3;
-for (let i = 0; i < 25; i++) {
-  const log = makeOwDemoLog(i);
-  const r = normalizeOverwatch(log, { playedAt: now - (25 - i) * 30 * 3600e3 });
+for (let i = 0; i < 33; i++) {
+  const log = makeOwDemoLog(i, i % 4 === 3);
+  const r = normalizeOverwatch(log, { playedAt: now - (33 - i) * 22 * 3600e3 });
   if (r.ok) await db.insertMatch({ match: r.match, raw: { log }, uploadedBy: 'shared' });
   else console.log('demo ow skipped:', r.reason);
 }

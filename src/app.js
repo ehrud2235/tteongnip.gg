@@ -17,7 +17,7 @@ import {
 import { createNotifier } from './discord.js';
 import { applyPositionEdits, normalizeGame } from './game.js';
 import { computeStats } from './stats.js';
-import { normalizeOverwatch } from './overwatch.js';
+import { normalizeOverwatch, owFormat, setOwWinner } from './overwatch.js';
 import { computeOwStats } from './ow-stats.js';
 import { makeDateFormat } from './util/format.js';
 import * as pages from './views/pages.js';
@@ -128,6 +128,7 @@ export function collectorBat({ server, key }) {
 }
 
 const NO_HERO_IMAGES = { portrait: () => null };
+const OW_TABS = ['all', '5v5', '6v6'];
 
 export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetch = globalThis.fetch, log = console }) {
   const discordAuth = createDiscordAuth({ config, fetch });
@@ -153,7 +154,12 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
         matches: lol,
         byId: new Map(matches.map((m) => [m.id, m])),
         stats: computeStats(lol, { minRankedGames: config.minRankedGames }),
-        ow: { matches: ow, stats: computeOwStats(ow, { minRankedGames: config.minRankedGames }) },
+        // 오버워치는 전체 / 5대5 / 6대6 을 각각 따로 계산한다 (탭마다 그 판들로만 점수와 순위)
+        ow: Object.fromEntries(
+          Object.entries({ all: ow, '5v5': ow.filter((m) => owFormat(m) === '5v5'), '6v6': ow.filter((m) => owFormat(m) === '6v6') }).map(
+            ([key, list]) => [key, { key, matches: list, stats: computeOwStats(list, { minRankedGames: config.minRankedGames }) }],
+          ),
+        ),
         links: new Map(links.map((l) => [l.puuid, l])),
         members: new Map(members.map((m) => [m.discordId, m])),
       };
@@ -208,6 +214,10 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
       data,
       assetVersion,
       query: url.searchParams.get('q') || '',
+      owTab: OW_TABS.includes(url.searchParams.get('f')) ? url.searchParams.get('f') : 'all',
+      get ow() {
+        return data.ow[this.owTab];
+      },
       linkedName(puuid) {
         const l = data.links.get(puuid);
         return l ? data.members.get(l.discordId)?.name || '연결됨' : null;
@@ -293,14 +303,35 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
     },
 
     async owPlayerDetail(req, res, ctx, url, name) {
-      const s = ctx.data.ow.stats.players.get(`ow:${name.toLowerCase()}`);
-      if (!s) return notFound(res, ctx);
+      const key = `ow:${name.toLowerCase()}`;
+      const s = ctx.ow.stats.players.get(key);
+      if (!s) {
+        // 이 탭(5대5/6대6)에서는 한 판이 없는 사람
+        if (ctx.owTab !== 'all' && ctx.data.ow.all.stats.players.has(key)) {
+          return sendHtml(res, 200, owPages.owPlayerEmptyPage(ctx, ctx.data.ow.all.stats.players.get(key)));
+        }
+        return notFound(res, ctx);
+      }
       sendHtml(res, 200, owPages.owPlayerPage(ctx, s));
+    },
+
+    async owMatchWinner(req, res, ctx, url, id) {
+      const form = await readForm(req, ctx);
+      const m = await db.getMatch(id);
+      if (!m || m.game !== 'ow') return notFound(res, ctx);
+      // 점수로 확실히 정해진 판은 관리자만 고칠 수 있다
+      if (m.winnerSource === 'score' && !ctx.user.isAdmin) throw new HttpError(403, '점수로 승패가 정해진 판은 관리자만 고칠 수 있어요');
+      const winner = Number(form.get('winner'));
+      if (![0, 1, 2].includes(winner)) throw new HttpError(400, '이긴 팀을 골라주세요');
+      setOwWinner(m, winner);
+      await db.updateMatch(m);
+      invalidate();
+      redirect(res, `/ow/matches/${encodeURIComponent(id)}`);
     },
 
     async owPlayerLink(req, res, ctx, url, name, action) {
       const key = `ow:${name.toLowerCase()}`;
-      await linkPlayer(req, ctx, key, action, ctx.data.ow.stats.players.has(key));
+      await linkPlayer(req, ctx, key, action, ctx.data.ow.all.stats.players.has(key));
       redirect(res, `/ow/players/${encodeURIComponent(name.toLowerCase())}`);
     },
 
@@ -332,7 +363,7 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
         ...[...ctx.data.stats.players.values()]
           .filter((s) => hit(`${s.name}#${s.tag}`) || hit(ctx.linkedName(s.puuid)))
           .map((s) => ({ game: 'lol', s, url: `/players/${encodeURIComponent(s.puuid)}` })),
-        ...[...ctx.data.ow.stats.players.values()]
+        ...[...ctx.data.ow.all.stats.players.values()]
           .filter((s) => hit(s.name) || hit(ctx.linkedName(s.key)))
           .map((s) => ({ game: 'ow', s, url: `/ow/players/${encodeURIComponent(s.key.slice(3))}` })),
       ].sort((a, b) => b.s.games - a.s.games);
@@ -527,7 +558,7 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
         (async () => {
           const data = await getData();
           await notifier.owMatchCreated(match, {
-            deltas: data.ow.stats.deltas.get(match.id) || {},
+            deltas: data.ow[owFormat(match)].stats.deltas.get(match.id) || {},
             linkOf: (key) => data.links.get(key)?.discordId || null,
           });
         })(),
@@ -545,9 +576,11 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
   async function pagedMatches(ctx, url, game) {
     const showHidden = url.searchParams.get('hidden') === '1' && ctx.user?.isAdmin;
     const all = showHidden
-      ? (await db.listMatches({ includeHidden: true })).filter((m) => m.meta.hidden && (m.game || 'lol') === game)
+      ? (await db.listMatches({ includeHidden: true })).filter(
+          (m) => m.meta.hidden && (m.game || 'lol') === game && (game !== 'ow' || ctx.owTab === 'all' || owFormat(m) === ctx.owTab),
+        )
       : game === 'ow'
-        ? ctx.data.ow.matches
+        ? ctx.ow.matches
         : ctx.data.matches;
     const pagesCount = Math.max(1, Math.ceil(all.length / MATCHES_PER_PAGE));
     const page = Math.min(pagesCount, Math.max(1, Number(url.searchParams.get('page')) || 1));
@@ -609,6 +642,7 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
     ['GET', /^\/ow$/, handlers.owRanking],
     ['GET', /^\/ow\/matches$/, handlers.owMatchList],
     ['GET', /^\/ow\/matches\/([\w-]+)$/, handlers.owMatchDetail],
+    ['POST', /^\/ow\/matches\/([\w-]+)\/winner$/, handlers.owMatchWinner],
     ['GET', /^\/ow\/players\/([^/]+)$/, handlers.owPlayerDetail],
     ['POST', /^\/ow\/players\/([^/]+)\/(link|unlink)$/, handlers.owPlayerLink],
     ['GET', /^\/ow\/heroes$/, handlers.owHeroList],

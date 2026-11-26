@@ -30,7 +30,7 @@ test('워크샵 스크립트: 중괄호 짝이 맞고, 액션은 세미콜론으
 });
 
 test('워크샵 스크립트: 서버가 읽는 기록 종류를 모두 남긴다', () => {
-  for (const kind of ['start', 'hero', 'kill', 'ult', 'ab1', 'ab2', 'asleep', 'stat', 'end']) {
+  for (const kind of ['start', 'hero', 'kill', 'ult', 'ab1', 'ab2', 'asleep', 'obj', 'stat', 'end']) {
     assert.ok(text.includes(`"TN,${kind},`), `TN,${kind} 기록이 없어요`);
   }
 });

@@ -1,6 +1,6 @@
 // 새 내전이 기록되면 디스코드 채널에 결과를 올린다 (채널 웹후크 주소만 있으면 된다, 봇 불필요).
 import { fmtDuration, fmtSigned, modeName } from './util/format.js';
-import { matchHighlights } from './overwatch.js';
+import { FORMAT_NAMES, matchHighlights, owFormat } from './overwatch.js';
 
 const BLUE = 0x4c8dff;
 const RED = 0xff5a5f;
@@ -46,7 +46,7 @@ export function buildOwMatchMessage(match, { baseUrl, siteName, deltas = {}, lin
     allowed_mentions: { parse: [] },
     embeds: [
       {
-        title: `오버워치 내전 · ${match.map} · ${match.score[0]} : ${match.score[1]}`,
+        title: `오버워치 내전 (${FORMAT_NAMES[owFormat(match)]}) · ${match.map} · ${match.score[0]} : ${match.score[1]}${match.winner === 0 ? ' · 승패 미정' : ''}`,
         url: `${baseUrl}/ow/matches/${encodeURIComponent(match.id)}`,
         description: highlights.map((h) => `${h.icon} **${h.who.name}** ${h.text}`).join('\n').slice(0, 2000) || undefined,
         color: match.winner === 1 ? BLUE : match.winner === 2 ? RED : 0x8a93a6,

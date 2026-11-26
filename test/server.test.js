@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { csrfToken, makeUploadKey } from '../src/auth.js';
-import { makeLcuGame, makeOwLog, puuidOf, startApp } from './helpers.js';
+import { makeLcuGame, makeOwLog, OW_TEAM1, OW_TEAM2, puuidOf, startApp } from './helpers.js';
 
 const upload = (base, key, game) =>
   fetch(`${base}/api/collector/matches`, {
@@ -253,7 +253,7 @@ test('오버워치: 업로드, 페이지, 명장면, 계정 연결, 숨기기, �
 
     await t.app.drain();
     assert.equal(hooks.length, 1);
-    assert.match(hooks[0].embeds[0].title, /오버워치 내전 · 왕의 길 · 3 : 2/);
+    assert.match(hooks[0].embeds[0].title, /오버워치 내전 \(5대5\) · 왕의 길 · 3 : 2/);
     assert.match(hooks[0].embeds[0].description, /아나장인\*\* 수면총으로 3명 재움/);
     assert.match(hooks[0].embeds[0].fields[0].value, /\*\*라인하르트\*\* 라인장인/);
 
@@ -304,6 +304,44 @@ test('오버워치: 업로드, 페이지, 명장면, 계정 연결, 숨기기, �
     assert.equal(hide.headers.get('location'), `/ow/matches/${id}`);
     assert.match(await (await fetch(`${t.base}/ow`)).text(), /아직 기록된 오버워치 내전이 없어요/);
     assert.match(await (await fetch(`${t.base}/ow/matches?hidden=1`)).text(), /왕의 길/);
+  } finally {
+    await t.close();
+  }
+});
+
+test('오버워치: 5대5 / 6대6 탭과 승패 정하기', async () => {
+  const t = await startApp({ UPLOAD_KEY: 'k' });
+  const send = async (log) =>
+    (await fetch(`${t.base}/api/collector/overwatch`, { method: 'POST', headers: { authorization: 'Bearer k', 'content-type': 'application/json' }, body: JSON.stringify({ log }) })).json();
+  try {
+    const six1 = [...OW_TEAM1, ['여섯째', 1, '자리야']];
+    const six2 = [...OW_TEAM2, ['육번', 1, '시그마']];
+    const a = await send(makeOwLog());
+    const b = await send(makeOwLog({ team1: six1, team2: six2, score: [0, 0] }));
+    assert.equal(a.status, 'created');
+    assert.equal(b.status, 'created');
+    const six = await (await fetch(`${t.base}/ow?f=6v6`)).text();
+    assert.match(six, /여섯째/);
+    assert.match(six, /aria-current="page">6대6 <small>1/);
+    const five = await (await fetch(`${t.base}/ow?f=5v5`)).text();
+    assert.doesNotMatch(five, /여섯째/);
+    assert.match(await (await fetch(`${t.base}/ow/matches?f=6v6`)).text(), /6대6/);
+    // 6대6 기록이 없는 사람의 6대6 탭
+    const empty = await fetch(`${t.base}/ow/players/${encodeURIComponent('여섯째')}?f=5v5`);
+    assert.match(await empty.text(), /5대5 기록이 없어요/);
+
+    // 0 : 0 이고 목표 기록이 없으면 승패 미정 → 직접 정하기
+    const page = await (await fetch(`${t.base}/ow/matches/${b.id}`)).text();
+    assert.match(page, /승패를 알 수 없는 판이에요/);
+    const csrf = csrfToken('dev', 'test-secret');
+    const set = await fetch(`${t.base}/ow/matches/${b.id}/winner`, form({ _csrf: csrf, winner: '2' }));
+    assert.equal(set.status, 303);
+    const m = await t.db.getMatch(b.id);
+    assert.equal(m.winner, 2);
+    assert.equal(m.winnerSource, 'manual');
+    assert.ok(m.players.filter((p) => p.team === 2).every((p) => p.win && !p.draw));
+    assert.match(await (await fetch(`${t.base}/ow/matches/${b.id}`)).text(), /승패를 직접 정한 판이에요/);
+    assert.equal((await fetch(`${t.base}/ow/matches/${b.id}/winner`, form({ _csrf: csrf, winner: '7' }))).status, 400);
   } finally {
     await t.close();
   }

@@ -350,3 +350,13 @@ textarea.code { display: block; width: 100%; margin: 8px 0 4px; background: var(
 .highlights .hi { border-radius: 4px; }
 
 .share-code { display: inline-block; font: 700 18px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 3px; padding: 4px 12px; margin: 4px 0; border-radius: 8px; background: #5a3412; color: #ffe0c2; user-select: all; }
+
+/* 5대5 / 6대6 탭, 승패 정하기 */
+.tabs { display: flex; gap: 4px; margin: -4px 0 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tabs a { padding: 8px 14px; color: var(--muted); font-weight: 700; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs a small { font-weight: 400; color: var(--muted); margin-left: 2px; }
+.tabs a:hover { color: var(--text); }
+.tabs a[aria-current="page"] { color: var(--text); border-bottom-color: #f08a24; }
+.fmt { font-size: 11px; font-weight: 700; padding: 0 6px; border-radius: 4px; background: #5a3412; color: #ffe0c2; }
+.center { text-align: center; }
+.winner-form { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }

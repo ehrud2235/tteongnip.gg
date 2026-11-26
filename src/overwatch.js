@@ -6,6 +6,7 @@
 //   TN,ult|ab1|ab2,시간,이름,영웅
 //   TN,asleep,시간,이름
 //   TN,stat,이름,팀,처치,결정타,죽음,영웅피해,치유,막은피해,궁사용,환경처치,환경죽음,솔로킬,받은피해,공격도움,방어도움
+//   TN,obj,공격팀(1|2|0),화물진행도(%),목표번호,남은시간,라운드   ← 경기 끝 순간의 목표 상태 (호위·혼합 승패 판정용)
 //   TN,end,시간,1팀점수,2팀점수
 import crypto from 'node:crypto';
 
@@ -152,7 +153,24 @@ export function normalizeOverwatch(text, opts = {}) {
   const teams = new Set([...stats.values()].map((s) => s.team));
   if (!teams.has(1) || !teams.has(2)) return fail('두 팀으로 나뉜 경기가 아니에요');
   if (duration < minDuration) return fail(`너무 짧은 경기예요 (${Math.floor(duration / 60)}분)`);
-  const winner = score[0] > score[1] ? 1 : score[1] > score[0] ? 2 : 0;
+  // 승패: 팀 점수가 다르면 점수로. 같으면(경쟁전 규칙 없는 호위·혼합은 0 : 0) 경기 끝 순간의 목표 상태로 판정.
+  let winner = score[0] > score[1] ? 1 : score[1] > score[0] ? 2 : 0;
+  let winnerSource = winner ? 'score' : null;
+  const objLine = after.find((l) => l.type === 'obj');
+  const objective = objLine
+    ? { offense: num(objLine.f[0]), payload: num(objLine.f[1]), index: num(objLine.f[2]), timeLeft: num(objLine.f[3]), round: num(objLine.f[4]) }
+    : null;
+  if (!winner && objective && (objective.offense === 1 || objective.offense === 2)) {
+    const attackersFinished = objective.payload >= 99 || objective.index >= 3;
+    winner = attackersFinished ? objective.offense : 3 - objective.offense;
+    winnerSource = 'objective';
+  }
+
+  // 5대5 / 6대6: 중간에 나간 사람까지 포함해서 팀별로 영웅을 고른 사람 수
+  const teamCount = { 1: new Set(), 2: new Set() };
+  for (const [name, list] of heroLog) for (const h of list) if (teamCount[h.team]) teamCount[h.team].add(name);
+  for (const st of stats.values()) if (teamCount[st.team]) teamCount[st.team].add(st.name);
+  const teamSize = Math.max(teamCount[1].size, teamCount[2].size);
 
   const teamOf = new Map([...stats.values()].map((s) => [s.name, s.team]));
   const players = [...stats.values()].map((s) => {
@@ -229,6 +247,10 @@ export function normalizeOverwatch(text, opts = {}) {
       mode: start.f[2] || '',
       score,
       winner,
+      winnerSource,
+      objective,
+      teamSize,
+      format: teamSize >= 6 ? '6v6' : '5v5',
       players,
     },
   };
@@ -292,4 +314,24 @@ export function playerTitles(s) {
   if (s.games >= 4 && per(s.fun.slept) >= 2) titles.push({ name: '꿀잠 전문', why: `한 판에 평균 ${per(s.fun.slept).toFixed(1)}번 잠듦` });
   if (s.games >= 5 && s.winRate <= 35) titles.push({ name: '패배 요정', why: `승률 ${s.winRate}%` });
   return titles.slice(0, 2);
+}
+
+export const FORMAT_NAMES = { all: '전체', '5v5': '5대5', '6v6': '6대6' };
+
+/** 5대5 / 6대6 (예전 기록은 남은 사람 수로 판단) */
+export function owFormat(m) {
+  if (m.format) return m.format;
+  const per = [1, 2].map((t) => m.players.filter((p) => p.team === t).length);
+  return Math.max(...per) >= 6 ? '6v6' : '5v5';
+}
+
+/** 승패를 직접 정한다. winner: 1 | 2 | 0(무승부) */
+export function setOwWinner(match, winner) {
+  match.winner = winner;
+  match.winnerSource = 'manual';
+  for (const p of match.players) {
+    p.draw = winner === 0;
+    p.win = winner !== 0 && p.team === winner;
+  }
+  return match;
 }

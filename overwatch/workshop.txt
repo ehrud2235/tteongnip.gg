@@ -165,6 +165,25 @@ rule("떡잎.gg | 잠듦")
 	}
 }
 
+rule("떡잎.gg | 경기 끝 - 목표 상태")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.tnStarted == True;
+		Is Match Complete == True;
+	}
+
+	actions
+	{
+		Log To Inspector(Custom String("TN,obj,{0},{1},{2}", Is Team On Offense(Team 1) ? 1 : (Is Team On Offense(Team 2) ? 2 : 0), Round To Integer(Payload Progress Percentage, To Nearest), Custom String("{0},{1},{2}", Objective Index, Round To Integer(Match Time, To Nearest), Match Round)));
+	}
+}
+
 rule("떡잎.gg | 경기 끝 - 개인 기록")
 {
 	event

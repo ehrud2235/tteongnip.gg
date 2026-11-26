@@ -2,7 +2,7 @@
 import { html } from '../util/html.js';
 import { fmtAvg, fmtDuration, fmtNum, fmtPct } from '../util/format.js';
 import { relationList } from '../stats.js';
-import { matchHighlights, ROLE_NAMES } from '../overwatch.js';
+import { FORMAT_NAMES, matchHighlights, owFormat, ROLE_NAMES } from '../overwatch.js';
 import { layout } from './pages.js';
 import {
   delta,
@@ -22,6 +22,19 @@ import {
 
 const page = (ctx, opts) => layout(ctx, { ...opts, game: 'ow' });
 
+const tabQuery = (ctx, extra = '') => {
+  const q = [ctx.owTab !== 'all' ? `f=${ctx.owTab}` : '', extra].filter(Boolean).join('&');
+  return q ? `?${q}` : '';
+};
+
+/** 전체 / 5대5 / 6대6 탭. 탭마다 그 판들로만 따로 계산한다. */
+function formatTabs(ctx, basePath) {
+  return html`<nav class="tabs" aria-label="인원">${['all', '5v5', '6v6'].map((key) => {
+    const count = ctx.data.ow[key].matches.length;
+    return html`<a href="${basePath}${key === 'all' ? '' : `?f=${key}`}" ${ctx.owTab === key ? html`aria-current="page"` : ''}>${FORMAT_NAMES[key]} <small>${count}</small></a>`;
+  })}</nav>`;
+}
+
 /** 처치 / 도움 / 죽음 (여러 판이면 평균) */
 function eadCell(e, a, d, games = 1) {
   const v = (x) => (games > 1 ? fmtAvg(x / games) : String(x));
@@ -34,9 +47,9 @@ function topHeroes(s, n = 3) {
 
 function card(ctx, m) {
   const team = (t) => m.players.filter((p) => p.team === t);
-  const label = (t) => (m.winner === t ? '승리' : m.winner === 0 ? '무승부' : '패배');
+  const label = (t) => (m.winner === t ? '승리' : m.winner === 0 ? '승패 미정' : '패배');
   return html`<a class="mcard" href="${owMatchUrl(m.id)}">
-    <div class="mc-meta"><b>${m.map || '맵 모름'}</b><span>${m.mode}</span><span>${ctx.dates.ago(m.createdAt)}</span><span>${fmtDuration(m.duration)}</span><span class="mc-score">${m.score[0]} : ${m.score[1]}</span></div>
+    <div class="mc-meta"><span class="fmt">${FORMAT_NAMES[owFormat(m)]}</span><b>${m.map || '맵 모름'}</b><span>${m.mode}</span><span>${ctx.dates.ago(m.createdAt)}</span><span>${fmtDuration(m.duration)}</span><span class="mc-score">${m.score[0]} : ${m.score[1]}</span></div>
     <div class="mc-teams">${[1, 2].map(
       (t) => html`<div class="mc-team ${m.winner === t ? 'won' : m.winner === 0 ? 'draw' : 'lost'}">
         <span class="mc-label">${t}팀 · ${label(t)}</span>
@@ -47,12 +60,12 @@ function card(ctx, m) {
 }
 
 export function owRankingPage(ctx) {
-  const { stats, matches } = ctx.data.ow;
+  const { stats, matches } = ctx.ow;
   if (!stats.totalMatches) {
     return page(ctx, {
       title: '오버워치 랭킹',
       active: 'ranking',
-      body: html`<h1>오버워치 내전 랭킹</h1>${emptyState(
+      body: html`<h1>오버워치 내전 랭킹</h1>${formatTabs(ctx, '/ow')}${emptyState(
         '아직 기록된 오버워치 내전이 없어요',
         html`방장이 커스텀 게임에 떡잎.gg 워크샵 스크립트를 넣고 <a href="/collector#overwatch">수집기</a>를 켜두면 자동으로 기록돼요.`,
       )}`,
@@ -80,6 +93,7 @@ export function owRankingPage(ctx) {
     active: 'ranking',
     body: html`
 <h1>오버워치 내전 랭킹</h1>
+${formatTabs(ctx, '/ow')}
 <div class="cards">
   <div class="card"><small>기록된 내전</small><b>${stats.totalMatches}판</b></div>
   <div class="card"><small>참가한 사람</small><b>${stats.players.size}명</b></div>
@@ -88,8 +102,8 @@ export function owRankingPage(ctx) {
 </div>
 ${stats.ranked.length ? table(stats.ranked) : html`<p class="muted">아직 ${stats.minRankedGames}판 이상 한 사람이 없어서 순위가 없어요.</p>`}
 ${stats.unranked.length ? html`<h2>배치 중 <small class="muted">${stats.minRankedGames}판부터 순위에 올라가요</small></h2>${table(stats.unranked)}` : ''}
-<p class="muted small">점수는 롤과 따로 1000점에서 시작해요. 처치/도움/죽음은 한 판 평균, 피해·치유는 10분당 평균이에요.</p>
-<h2>최근 내전 <a class="more" href="/ow/matches">전체 보기</a></h2>
+<p class="muted small">점수는 롤과 따로 1000점에서 시작해요. 전체 · 5대5 · 6대6 탭은 각각 그 판들로만 따로 계산해요. 처치/도움/죽음은 한 판 평균, 피해·치유는 10분당 평균이에요.</p>
+<h2>최근 내전 <a class="more" href="/ow/matches${tabQuery(ctx)}">전체 보기</a></h2>
 <div class="mlist">${matches.slice(0, 4).map((m) => card(ctx, m))}</div>`,
   });
 }
@@ -100,16 +114,17 @@ export function owMatchesPage(ctx, { matches, page: p, pages, showHidden }) {
     active: 'matches',
     body: html`
 <h1>${showHidden ? '숨긴 오버워치 내전' : '오버워치 최근 내전'}</h1>
-${ctx.user?.isAdmin ? html`<p class="small"><a href="${showHidden ? '/ow/matches' : '/ow/matches?hidden=1'}">${showHidden ? '← 최근 내전으로' : '숨긴 내전 보기'}</a></p>` : ''}
+${formatTabs(ctx, '/ow/matches')}
+${ctx.user?.isAdmin ? html`<p class="small"><a href="/ow/matches${tabQuery(ctx, showHidden ? '' : 'hidden=1')}">${showHidden ? '← 최근 내전으로' : '숨긴 내전 보기'}</a></p>` : ''}
 ${matches.length ? html`<div class="mlist">${matches.map((m) => card(ctx, m))}</div>` : emptyState('기록된 내전이 없어요', html`<a href="/collector#overwatch">수집기 안내</a>를 확인해 주세요.`)}
 ${pages > 1
-  ? html`<nav class="pager" aria-label="페이지">${p > 1 ? html`<a href="?page=${p - 1}${showHidden ? '&hidden=1' : ''}">← 이전</a>` : html`<span></span>`}<span>${p} / ${pages}</span>${p < pages ? html`<a href="?page=${p + 1}${showHidden ? '&hidden=1' : ''}">다음 →</a>` : html`<span></span>`}</nav>`
+  ? html`<nav class="pager" aria-label="페이지">${p > 1 ? html`<a href="${tabQuery(ctx, `page=${p - 1}${showHidden ? '&hidden=1' : ''}`)}">← 이전</a>` : html`<span></span>`}<span>${p} / ${pages}</span>${p < pages ? html`<a href="${tabQuery(ctx, `page=${p + 1}${showHidden ? '&hidden=1' : ''}`)}">다음 →</a>` : html`<span></span>`}</nav>`
   : ''}`,
   });
 }
 
 export function owMatchPage(ctx, m) {
-  const d = ctx.data.ow.stats.deltas.get(m.id) || {};
+  const d = ctx.data.ow[owFormat(m)].stats.deltas.get(m.id) || {};
   const highlights = matchHighlights(m);
   const teamBox = (t) => {
     const team = m.players.filter((p) => p.team === t);
@@ -117,7 +132,7 @@ export function owMatchPage(ctx, m) {
     const sum = (k) => team.reduce((a, p) => a + (p[k] || 0), 0);
     return html`<section class="team-box ${t === 1 ? 'blue' : 'red'} ${won ? 'won' : m.winner === 0 ? 'draw' : 'lost'}">
   <header>
-    <h2>${won ? '승리' : m.winner === 0 ? '무승부' : '패배'} <small>${t}팀</small></h2>
+    <h2>${won ? '승리' : m.winner === 0 ? '승패 미정' : '패배'} <small>${t}팀</small></h2>
     <div class="team-sum">처치 ${sum('elims')} · 피해 ${fmtNum(sum('damage'))} · 치유 ${fmtNum(sum('healing'))}</div>
   </header>
   <div class="table-wrap"><table class="mt">
@@ -144,12 +159,15 @@ export function owMatchPage(ctx, m) {
     body: html`
 ${m.meta?.hidden ? html`<p class="notice warn">숨긴 내전이에요. 랭킹과 전적에 들어가지 않아요.</p>` : ''}
 <div class="match-head">
-  <h1>${m.map || '맵 모름'} <small>${m.mode} · ${fmtDuration(m.duration)}</small></h1>
+  <h1>${m.map || '맵 모름'} <small>${FORMAT_NAMES[owFormat(m)]} · ${m.mode} · ${fmtDuration(m.duration)}</small></h1>
   <p class="muted">${ctx.dates.date(m.createdAt)}${ctx.uploaderName ? ` · 올린 사람 ${ctx.uploaderName}` : ''}</p>
 </div>
 <div class="scoreline">
-  <span class="${m.winner === 1 ? 'won' : ''}">1팀</span><b>${m.score[0]} : ${m.score[1]}</b><span class="${m.winner === 2 ? 'won' : ''}">2팀</span>
+  <span class="${m.winner === 1 ? 'won' : ''}">1팀${m.winner === 1 ? ' 승리' : ''}</span><b>${m.score[0]} : ${m.score[1]}</b><span class="${m.winner === 2 ? 'won' : ''}">${m.winner === 2 ? '승리 ' : ''}2팀</span>
 </div>
+${m.winnerSource === 'objective' ? html`<p class="muted small center">팀 점수가 같아서 경기 끝 순간의 화물 진행도로 승패를 판정했어요.</p>` : ''}
+${m.winnerSource === 'manual' ? html`<p class="muted small center">승패를 직접 정한 판이에요.</p>` : ''}
+${m.winner === 0 && ctx.user ? html`<p class="notice warn">승패를 알 수 없는 판이에요. 이긴 팀을 골라주면 랭킹에 반영돼요. (아래 <b>승패 정하기</b>)</p>` : ''}
 ${highlights.length
   ? html`<div class="panel highlights"><h3>이 판의 명장면 · 흑역사</h3><ul>${highlights.map(
       (h) => html`<li class="${h.kind}"><span class="hl-icon" aria-hidden="true">${h.icon}</span>${heroIcon(ctx.owh, h.who.hero, 20, { fallback: 'none' })}${owPlayerName(h.who)}<span>${h.text}</span></li>`,
@@ -157,6 +175,17 @@ ${highlights.length
   : ''}
 ${teamBox(1)}
 ${teamBox(2)}
+${ctx.user && (m.winnerSource !== 'score' || ctx.user.isAdmin)
+  ? html`<details class="edit" ${m.winner === 0 ? html`open` : ''}>
+  <summary>승패 정하기${m.winner === 0 ? '' : ' (틀렸을 때)'}</summary>
+  <form method="post" action="${owMatchUrl(m.id)}/winner" class="winner-form">
+    <input type="hidden" name="_csrf" value="${ctx.csrf}">
+    <button class="btn" name="winner" value="1" type="submit">1팀 승리</button>
+    <button class="btn" name="winner" value="2" type="submit">2팀 승리</button>
+    <button class="btn" name="winner" value="0" type="submit">무승부</button>
+  </form>
+</details>`
+  : ''}
 ${ctx.user?.isAdmin
   ? html`<form method="post" action="/matches/${encodeURIComponent(m.id)}/${m.meta?.hidden ? 'unhide' : 'hide'}" class="admin-row">
   <input type="hidden" name="_csrf" value="${ctx.csrf}">
@@ -190,7 +219,7 @@ const FUN_LABELS = [
 
 export function owPlayerPage(ctx, s) {
   const { data } = ctx;
-  const { stats } = data.ow;
+  const { stats } = ctx.ow;
   const link = data.links.get(s.key);
   const linkedName = ctx.linkedName(s.key);
   const mine = link && ctx.user && link.discordId === ctx.user.uid;
@@ -214,7 +243,7 @@ export function owPlayerPage(ctx, s) {
     const p = m?.players.find((x) => x.key === s.key);
     if (!m || !p) return '';
     return html`<a class="prow ${h.draw ? '' : h.win ? 'w' : 'l'}" href="${owMatchUrl(m.id)}">
-      <div class="pr-res"><b>${h.draw ? '무승부' : h.win ? '승리' : '패배'}</b><small>${ctx.dates.ago(m.createdAt)}</small><small>${fmtDuration(m.duration)}</small></div>
+      <div class="pr-res"><b>${h.draw ? '승패 미정' : h.win ? '승리' : '패배'}</b><small>${ctx.dates.ago(m.createdAt)}</small><small>${fmtDuration(m.duration)}</small></div>
       <div class="pr-champ">${heroIcon(ctx.owh, p.hero, 40)}<div><span class="hero-main">${p.hero}</span><small class="muted">${m.map}</small></div></div>
       <div class="pr-kda">${eadCell(p.elims, p.assists, p.deaths)}</div>
       <div class="pr-misc hide-sm"><span>피해 ${fmtNum(p.damage)}</span><span>치유 ${fmtNum(p.healing)}</span></div>
@@ -227,6 +256,7 @@ export function owPlayerPage(ctx, s) {
     title: s.name,
     active: 'ranking',
     body: html`
+${formatTabs(ctx, owPlayerUrl(s.key))}
 <section class="profile">
   <div class="profile-main">
     <h1>${s.name}</h1>
@@ -284,13 +314,14 @@ ${fun.length
 }
 
 export function owHeroesPage(ctx) {
-  const { stats } = ctx.data.ow;
+  const { stats } = ctx.ow;
   const total = Math.max(1, stats.totalMatches);
   return page(ctx, {
     title: '오버워치 영웅',
     active: 'heroes',
     body: html`
 <h1>영웅 통계 <small class="muted">우리 내전 ${stats.totalMatches}판 기준 · 가장 오래 한 영웅으로 계산</small></h1>
+${formatTabs(ctx, '/ow/heroes')}
 ${stats.heroes.length
   ? html`<div class="table-wrap"><table class="rank-table">
   <thead><tr><th>영웅</th><th class="num">판수</th><th class="num hide-sm">픽률</th><th>승률</th><th class="num hide-sm">플레이 시간</th><th class="hide-sm">제일 많이 한 사람</th></tr></thead>
@@ -308,5 +339,16 @@ ${stats.heroes.length
   })}</tbody>
 </table></div>`
   : emptyState('아직 기록이 없어요', '내전이 기록되면 영웅별 승률이 보여요.')}`,
+  });
+}
+
+/** 5대5/6대6 탭에서 한 판도 없는 사람 */
+export function owPlayerEmptyPage(ctx, s) {
+  return page(ctx, {
+    title: s.name,
+    active: 'ranking',
+    body: html`${formatTabs(ctx, owPlayerUrl(s.key))}
+<h1>${s.name}</h1>
+${emptyState(`${FORMAT_NAMES[ctx.owTab]} 기록이 없어요`, html`<a href="${owPlayerUrl(s.key)}">전체 기록 보기</a>`)}`,
   });
 }
