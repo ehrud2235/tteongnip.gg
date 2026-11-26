@@ -8,14 +8,17 @@ import path from 'node:path';
 import {
   createLcu,
   createServerApi,
+  estimatePlayedAt,
   loadState,
   main,
   parseArgs,
   parseCommandLine,
   parseLockfile,
+  splitOwMatches,
   syncOnce,
+  syncOverwatch,
 } from '../collector/collector.mjs';
-import { makeHistoryList, makeLcuGame, startApp } from './helpers.js';
+import { makeHistoryList, makeLcuGame, makeOwLog, startApp } from './helpers.js';
 
 function fakeLeagueClient(games, token = 'lcu-pass') {
   const requests = [];
@@ -116,4 +119,53 @@ test('수집기 전체 실행 (--once)', async () => {
     await lol.close();
     await site.close();
   }
+});
+
+test('오버워치 로그 파일에서 끝난 경기만 골라 한 번씩 올린다', async () => {
+  const site = await startApp({ UPLOAD_KEY: 'k' });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tn-ow-'));
+  try {
+    // 한 파일에 끝난 경기 2개 + 진행 중인 경기 1개, 다른 줄(워크샵 다른 로그)도 섞여 있다
+    const text = [
+      '[20:00:00] 다른 스크립트 로그',
+      makeOwLog({ score: [2, 0] }),
+      makeOwLog({ score: [1, 2], t0: 40, clockBase: 21 * 3600 }),
+      makeOwLog({ complete: false, clockBase: 22 * 3600 }),
+    ].join('\n');
+    const blocks = splitOwMatches(text);
+    assert.equal(blocks.length, 2);
+    assert.deepEqual(blocks[1].clock, [21, 0, 40]);
+    fs.writeFileSync(path.join(dir, 'Log-2026-11-26-19-55-00.txt'), text);
+    fs.writeFileSync(path.join(dir, 'notes.md'), 'TN,end,1,2,3');
+
+    const api = createServerApi({ server: site.base, key: 'k' });
+    const state = { sent: {}, ow: {} };
+    const seen = new Map();
+    const logs = [];
+    const first = await syncOverwatch({ dir, api, state, seen, log: (m) => logs.push(m) });
+    assert.deepEqual(first, { found: true, created: 2, duplicate: 0, ignored: 0 });
+    assert.ok(logs.some((l) => l.includes('오버워치 내전을 올렸어요: 왕의 길 2 : 0')), logs.join('\n'));
+    const matches = await site.db.listMatches();
+    assert.equal(matches.length, 2);
+    assert.ok(matches.every((m) => m.game === 'ow'));
+    const second = await syncOverwatch({ dir, api, state, seen });
+    assert.deepEqual(second, { found: true, created: 0, duplicate: 0, ignored: 0 });
+    // 다른 PC(기억이 없는 수집기)가 같은 파일을 올려도 중복으로 처리된다
+    const other = await syncOverwatch({ dir, api, state: { sent: {}, ow: {} } });
+    assert.equal(other.duplicate, 2);
+    assert.equal((await site.db.listMatches()).length, 2);
+    // 폴더가 없으면 조용히 넘어간다
+    assert.deepEqual(await syncOverwatch({ dir: path.join(dir, 'nope'), api, state }), { found: false, created: 0, duplicate: 0, ignored: 0 });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+    await site.close();
+  }
+});
+
+test('파일 이름과 줄 시간으로 경기 시각을 추정한다', () => {
+  const at = estimatePlayedAt('Log-2026-11-26-23-50-00.txt', [0, 10, 0], 123);
+  assert.equal(new Date(at).getDate(), 27); // 자정 넘김
+  assert.equal(new Date(at).getHours(), 0);
+  assert.equal(estimatePlayedAt('weird.txt', [1, 2, 3], 123), 123);
+  assert.equal(estimatePlayedAt('Log-2026-11-26-23-50-00.txt', null, 456), 456);
 });

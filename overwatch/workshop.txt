@@ -1,0 +1,209 @@
+variables
+{
+	global:
+		0: tnStarted
+
+	player:
+		0: tnHero
+}
+
+rule("떡잎.gg 기록기 | 사이트로 보낼 경기 기록을 워크샵 로그 파일에 남깁니다")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+}
+
+rule("떡잎.gg | 경기 시작")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Is Game In Progress == True;
+		Global.tnStarted == False;
+	}
+
+	actions
+	{
+		Global.tnStarted = True;
+		Log To Inspector(Custom String("TN,start,{0},{1},{2}", Round To Integer(Total Time Elapsed, To Nearest), Current Map, Current Game Mode));
+	}
+}
+
+rule("떡잎.gg | 영웅 선택과 교체")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Has Spawned(Event Player) == True;
+		Is Dummy Bot(Event Player) == False;
+		Hero Of(Event Player) != Event Player.tnHero;
+	}
+
+	actions
+	{
+		Event Player.tnHero = Hero Of(Event Player);
+		Log To Inspector(Custom String("TN,hero,{0},{1},{2}", Round To Integer(Total Time Elapsed, To Nearest), Event Player, Custom String("{0},{1},{2}", (Team Of(Event Player) == Team 1) ? 1 : 2, Array Contains(All Tank Heroes, Hero Of(Event Player)) ? 1 : (Array Contains(All Support Heroes, Hero Of(Event Player)) ? 3 : 2), Hero Of(Event Player))));
+	}
+}
+
+rule("떡잎.gg | 처치")
+{
+	event
+	{
+		Player Died;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Global.tnStarted == True;
+	}
+
+	actions
+	{
+		Log To Inspector(Custom String("TN,kill,{0},{1},{2}", Round To Integer(Total Time Elapsed, To Nearest), Attacker, Custom String("{0},{1},{2}", Hero Of(Attacker), Victim, Custom String("{0},{1}", Hero Of(Victim), (Event Ability == Button(Ultimate)) ? 5 : ((Event Ability == Button(Melee)) ? 6 : ((Event Ability == Button(Ability 1)) ? 3 : ((Event Ability == Button(Ability 2)) ? 4 : ((Event Ability == Button(Secondary Fire)) ? 2 : ((Event Ability == Button(Primary Fire)) ? 1 : 0))))))));
+	}
+}
+
+rule("떡잎.gg | 궁극기 사용")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Global.tnStarted == True;
+		Is Dummy Bot(Event Player) == False;
+		Is Using Ultimate(Event Player) == True;
+	}
+
+	actions
+	{
+		Log To Inspector(Custom String("TN,ult,{0},{1},{2}", Round To Integer(Total Time Elapsed, To Nearest), Event Player, Hero Of(Event Player)));
+	}
+}
+
+rule("떡잎.gg | 기술 1 사용")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Global.tnStarted == True;
+		Is Dummy Bot(Event Player) == False;
+		Is Using Ability 1(Event Player) == True;
+	}
+
+	actions
+	{
+		Log To Inspector(Custom String("TN,ab1,{0},{1},{2}", Round To Integer(Total Time Elapsed, To Nearest), Event Player, Hero Of(Event Player)));
+	}
+}
+
+rule("떡잎.gg | 기술 2 사용")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Global.tnStarted == True;
+		Is Dummy Bot(Event Player) == False;
+		Is Using Ability 2(Event Player) == True;
+	}
+
+	actions
+	{
+		Log To Inspector(Custom String("TN,ab2,{0},{1},{2}", Round To Integer(Total Time Elapsed, To Nearest), Event Player, Hero Of(Event Player)));
+	}
+}
+
+rule("떡잎.gg | 잠듦")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Global.tnStarted == True;
+		Has Status(Event Player, Asleep) == True;
+	}
+
+	actions
+	{
+		Log To Inspector(Custom String("TN,asleep,{0},{1}", Round To Integer(Total Time Elapsed, To Nearest), Event Player));
+	}
+}
+
+rule("떡잎.gg | 경기 끝 - 개인 기록")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Global.tnStarted == True;
+		Is Match Complete == True;
+		Is Dummy Bot(Event Player) == False;
+	}
+
+	actions
+	{
+		Log To Inspector(Custom String("TN,stat,{0},{1},{2}", Event Player, (Team Of(Event Player) == Team 1) ? 1 : 2, Custom String("{0},{1},{2}", Player Stat(Event Player, Eliminations), Player Stat(Event Player, Final Blows), Custom String("{0},{1},{2}", Player Stat(Event Player, Deaths), Round To Integer(Player Stat(Event Player, Hero Damage Dealt), To Nearest), Custom String("{0},{1},{2}", Round To Integer(Player Stat(Event Player, Healing Dealt), To Nearest), Round To Integer(Player Stat(Event Player, Damage Blocked), To Nearest), Custom String("{0},{1},{2}", Player Stat(Event Player, Ultimates Used), Player Stat(Event Player, Environmental Kills), Custom String("{0},{1},{2}", Player Stat(Event Player, Environmental Deaths), Player Stat(Event Player, Solo Kills), Custom String("{0},{1},{2}", Round To Integer(Player Stat(Event Player, Damage Taken), To Nearest), Player Stat(Event Player, Offensive Assists), Player Stat(Event Player, Defensive Assists))))))))));
+	}
+}
+
+rule("떡잎.gg | 경기 끝 - 점수")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.tnStarted == True;
+		Is Match Complete == True;
+	}
+
+	actions
+	{
+		Wait(1, Ignore Condition);
+		Log To Inspector(Custom String("TN,end,{0},{1},{2}", Round To Integer(Total Time Elapsed, To Nearest), Team Score(Team 1), Team Score(Team 2)));
+		Global.tnStarted = False;
+	}
+}

@@ -43,6 +43,8 @@ export function loadConfig(env = process.env) {
     minPlayers: Math.max(2, Number(env.MIN_PLAYERS) || 10),
     minDuration: Number(env.MIN_GAME_SECONDS ?? 300) || 0,
     allowedModes: list(env.ALLOWED_MODES || 'CLASSIC').map((m) => m.toUpperCase()),
+    owMinPlayers: Math.max(2, Number(env.OW_MIN_PLAYERS) || 8),
+    owMinDuration: Number(env.OW_MIN_GAME_SECONDS ?? 180) || 0,
     warnings,
   };
 }

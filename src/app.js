@@ -17,12 +17,16 @@ import {
 import { createNotifier } from './discord.js';
 import { applyPositionEdits, normalizeGame } from './game.js';
 import { computeStats } from './stats.js';
+import { normalizeOverwatch } from './overwatch.js';
+import { computeOwStats } from './ow-stats.js';
 import { makeDateFormat } from './util/format.js';
 import * as pages from './views/pages.js';
+import * as owPages from './views/ow.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const COLLECTOR_FILE = path.join(ROOT, 'collector', 'collector.mjs');
+const WORKSHOP_FILE = path.join(ROOT, 'overwatch', 'workshop.txt');
 const SESSION_COOKIE = 'tn_session';
 const OAUTH_COOKIE = 'tn_oauth';
 const SESSION_DAYS = 30;
@@ -140,10 +144,13 @@ export function createApp({ config, db, ddragon, fetch = globalThis.fetch, log =
   async function getData() {
     if (!cache) {
       const [matches, links, members] = await Promise.all([db.listMatches(), db.listLinks(), db.listMembers()]);
+      const lol = matches.filter((m) => (m.game || 'lol') === 'lol');
+      const ow = matches.filter((m) => m.game === 'ow');
       cache = {
-        matches,
+        matches: lol,
         byId: new Map(matches.map((m) => [m.id, m])),
-        stats: computeStats(matches, { minRankedGames: config.minRankedGames }),
+        stats: computeStats(lol, { minRankedGames: config.minRankedGames }),
+        ow: { matches: ow, stats: computeOwStats(ow, { minRankedGames: config.minRankedGames }) },
         links: new Map(links.map((l) => [l.puuid, l])),
         members: new Map(members.map((m) => [m.discordId, m])),
       };
@@ -228,20 +235,24 @@ export function createApp({ config, db, ddragon, fetch = globalThis.fetch, log =
     },
 
     async matchList(req, res, ctx, url) {
-      const showHidden = url.searchParams.get('hidden') === '1' && ctx.user?.isAdmin;
-      const all = showHidden ? (await db.listMatches({ includeHidden: true })).filter((m) => m.meta.hidden) : ctx.data.matches;
-      const pagesCount = Math.max(1, Math.ceil(all.length / MATCHES_PER_PAGE));
-      const page = Math.min(pagesCount, Math.max(1, Number(url.searchParams.get('page')) || 1));
-      const matches = all.slice((page - 1) * MATCHES_PER_PAGE, page * MATCHES_PER_PAGE);
-      sendHtml(res, 200, pages.matchesPage(ctx, { matches, page, pages: pagesCount, showHidden }));
+      sendHtml(res, 200, pages.matchesPage(ctx, await pagedMatches(ctx, url, 'lol')));
+    },
+
+    async owMatchList(req, res, ctx, url) {
+      sendHtml(res, 200, owPages.owMatchesPage(ctx, await pagedMatches(ctx, url, 'ow')));
     },
 
     async matchDetail(req, res, ctx, url, id) {
-      const m = ctx.data.byId.get(id) || (ctx.user?.isAdmin ? await db.getMatch(id) : null);
+      const m = await findMatch(ctx, id);
       if (!m) return notFound(res, ctx);
-      const by = m.meta?.uploadedBy;
-      ctx.uploaderName = by && by !== 'shared' && by !== 'dev' ? ctx.data.members.get(by)?.name : null;
+      if (m.game === 'ow') return redirect(res, `/ow/matches/${encodeURIComponent(id)}`);
       sendHtml(res, 200, pages.matchPage(ctx, m));
+    },
+
+    async owMatchDetail(req, res, ctx, url, id) {
+      const m = await findMatch(ctx, id);
+      if (!m || m.game !== 'ow') return notFound(res, ctx);
+      sendHtml(res, 200, owPages.owMatchPage(ctx, m));
     },
 
     async matchPositions(req, res, ctx, url, id) {
@@ -259,9 +270,11 @@ export function createApp({ config, db, ddragon, fetch = globalThis.fetch, log =
     async matchHide(req, res, ctx, url, id, action) {
       await readForm(req, ctx);
       if (!ctx.user.isAdmin) throw new HttpError(403, '관리자만 할 수 있어요');
-      if (!(await db.setHidden(id, action === 'hide'))) return notFound(res, ctx);
+      const m = await db.getMatch(id);
+      if (!m) return notFound(res, ctx);
+      await db.setHidden(id, action === 'hide');
       invalidate();
-      redirect(res, `/matches/${encodeURIComponent(id)}`);
+      redirect(res, `${m.game === 'ow' ? '/ow' : ''}/matches/${encodeURIComponent(id)}`);
     },
 
     async playerDetail(req, res, ctx, url, puuid) {
@@ -271,21 +284,35 @@ export function createApp({ config, db, ddragon, fetch = globalThis.fetch, log =
     },
 
     async playerLink(req, res, ctx, url, puuid, action) {
-      await readForm(req, ctx);
-      if (!ctx.data.stats.players.has(puuid)) return notFound(res, ctx);
-      const existing = ctx.data.links.get(puuid);
-      if (action === 'link') {
-        if (existing && existing.discordId !== ctx.user.uid && !ctx.user.isAdmin) {
-          throw new HttpError(403, '이미 다른 사람과 연결된 계정이에요. 관리자에게 말해주세요.');
-        }
-        await db.setLink(puuid, ctx.user.uid);
-        if (ctx.user.dev) await db.upsertMember({ discordId: 'dev', name: '개발 모드', avatar: null });
-      } else if (existing) {
-        if (existing.discordId !== ctx.user.uid && !ctx.user.isAdmin) throw new HttpError(403, '내 계정만 연결을 끊을 수 있어요');
-        await db.removeLink(puuid);
-      }
-      invalidate();
+      await linkPlayer(req, ctx, puuid, action, ctx.data.stats.players.has(puuid));
       redirect(res, `/players/${encodeURIComponent(puuid)}`);
+    },
+
+    async owPlayerDetail(req, res, ctx, url, name) {
+      const s = ctx.data.ow.stats.players.get(`ow:${name.toLowerCase()}`);
+      if (!s) return notFound(res, ctx);
+      sendHtml(res, 200, owPages.owPlayerPage(ctx, s));
+    },
+
+    async owPlayerLink(req, res, ctx, url, name, action) {
+      const key = `ow:${name.toLowerCase()}`;
+      await linkPlayer(req, ctx, key, action, ctx.data.ow.stats.players.has(key));
+      redirect(res, `/ow/players/${encodeURIComponent(name.toLowerCase())}`);
+    },
+
+    async owRanking(req, res, ctx) {
+      sendHtml(res, 200, owPages.owRankingPage(ctx));
+    },
+
+    async owHeroList(req, res, ctx) {
+      sendHtml(res, 200, owPages.owHeroesPage(ctx));
+    },
+
+    async workshopFile(req, res) {
+      send(res, 200, await fs.readFile(WORKSHOP_FILE), {
+        'content-type': 'text/plain; charset=utf-8',
+        'content-disposition': 'attachment; filename="tteongnip-workshop.txt"',
+      });
     },
 
     async championList(req, res, ctx) {
@@ -296,15 +323,22 @@ export function createApp({ config, db, ddragon, fetch = globalThis.fetch, log =
       const q = (url.searchParams.get('q') || '').trim();
       if (!q) return redirect(res, '/');
       const needle = q.toLowerCase().replace(/\s+/g, '');
-      const results = [...ctx.data.stats.players.values()]
-        .filter((s) => `${s.name}#${s.tag}`.toLowerCase().replace(/\s+/g, '').includes(needle) || (ctx.linkedName(s.puuid) || '').toLowerCase().includes(needle))
-        .sort((a, b) => b.games - a.games);
-      if (results.length === 1) return redirect(res, `/players/${encodeURIComponent(results[0].puuid)}`);
+      const hit = (text) => String(text || '').toLowerCase().replace(/\s+/g, '').includes(needle);
+      const results = [
+        ...[...ctx.data.stats.players.values()]
+          .filter((s) => hit(`${s.name}#${s.tag}`) || hit(ctx.linkedName(s.puuid)))
+          .map((s) => ({ game: 'lol', s, url: `/players/${encodeURIComponent(s.puuid)}` })),
+        ...[...ctx.data.ow.stats.players.values()]
+          .filter((s) => hit(s.name) || hit(ctx.linkedName(s.key)))
+          .map((s) => ({ game: 'ow', s, url: `/ow/players/${encodeURIComponent(s.key.slice(3))}` })),
+      ].sort((a, b) => b.s.games - a.s.games);
+      if (results.length === 1) return redirect(res, results[0].url);
       sendHtml(res, 200, pages.searchPage(ctx, { q, results }));
     },
 
     async collectorPage(req, res, ctx) {
-      sendHtml(res, 200, pages.collectorPage(ctx, { key: makeUploadKey(ctx.user.uid, config.sessionSecret) }));
+      const workshop = await fs.readFile(WORKSHOP_FILE, 'utf8');
+      sendHtml(res, 200, pages.collectorPage(ctx, { key: makeUploadKey(ctx.user.uid, config.sessionSecret), workshop }));
     },
 
     async collectorBatFile(req, res, ctx) {
@@ -464,6 +498,85 @@ export function createApp({ config, db, ddragon, fetch = globalThis.fetch, log =
     },
   };
 
+  open.apiUploadOverwatch = async (req, res) => {
+    const who = uploader(req);
+    if (!who) return sendJson(res, 401, { error: '수집기 키가 맞지 않아요. 사이트의 수집기 페이지에서 새로 받아주세요.' });
+    let body;
+    try {
+      body = JSON.parse(await readBody(req, MAX_JSON));
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
+      return sendJson(res, 400, { error: 'JSON 형식이 아니에요' });
+    }
+    const result = normalizeOverwatch(body?.log, {
+      minPlayers: config.owMinPlayers,
+      minDuration: config.owMinDuration,
+      playedAt: Number(body?.playedAt) || Date.now(),
+    });
+    if (!result.ok) return sendJson(res, 200, { status: 'ignored', reason: result.reason });
+    const match = result.match;
+    const status = await db.insertMatch({ match, raw: { log: body.log, playedAt: body.playedAt, file: body.file }, uploadedBy: who.uid });
+    if (status === 'created') {
+      invalidate();
+      log.info?.(`[upload] 새 오버워치 내전 ${match.id} (올린 사람 ${who.uid})`);
+      track(
+        (async () => {
+          const data = await getData();
+          await notifier.owMatchCreated(match, {
+            deltas: data.ow.stats.deltas.get(match.id) || {},
+            linkOf: (key) => data.links.get(key)?.discordId || null,
+          });
+        })(),
+      );
+    }
+    sendJson(res, status === 'created' ? 201 : 200, {
+      status,
+      id: match.id,
+      url: `${config.baseUrl}/ow/matches/${encodeURIComponent(match.id)}`,
+      map: match.map,
+      score: match.score,
+    });
+  };
+
+  async function pagedMatches(ctx, url, game) {
+    const showHidden = url.searchParams.get('hidden') === '1' && ctx.user?.isAdmin;
+    const all = showHidden
+      ? (await db.listMatches({ includeHidden: true })).filter((m) => m.meta.hidden && (m.game || 'lol') === game)
+      : game === 'ow'
+        ? ctx.data.ow.matches
+        : ctx.data.matches;
+    const pagesCount = Math.max(1, Math.ceil(all.length / MATCHES_PER_PAGE));
+    const page = Math.min(pagesCount, Math.max(1, Number(url.searchParams.get('page')) || 1));
+    return { matches: all.slice((page - 1) * MATCHES_PER_PAGE, page * MATCHES_PER_PAGE), page, pages: pagesCount, showHidden };
+  }
+
+  /** 숨긴 내전은 관리자만 볼 수 있다. */
+  async function findMatch(ctx, id) {
+    const m = ctx.data.byId.get(id) || (ctx.user?.isAdmin ? await db.getMatch(id) : null);
+    if (m) {
+      const by = m.meta?.uploadedBy;
+      ctx.uploaderName = by && by !== 'shared' && by !== 'dev' ? ctx.data.members.get(by)?.name : null;
+    }
+    return m;
+  }
+
+  async function linkPlayer(req, ctx, key, action, exists) {
+    await readForm(req, ctx);
+    if (!exists) throw new HttpError(404, '기록이 없는 플레이어예요');
+    const existing = ctx.data.links.get(key);
+    if (action === 'link') {
+      if (existing && existing.discordId !== ctx.user.uid && !ctx.user.isAdmin) {
+        throw new HttpError(403, '이미 다른 사람과 연결된 계정이에요. 관리자에게 말해주세요.');
+      }
+      await db.setLink(key, ctx.user.uid);
+      if (ctx.user.dev) await db.upsertMember({ discordId: 'dev', name: '개발 모드', avatar: null });
+    } else if (existing) {
+      if (existing.discordId !== ctx.user.uid && !ctx.user.isAdmin) throw new HttpError(403, '내 계정만 연결을 끊을 수 있어요');
+      await db.removeLink(key);
+    }
+    invalidate();
+  }
+
   // [메서드, 경로, 처리 함수, 로그인 없이 열림?]
   const routes = [
     ['GET', /^\/healthz$/, open.healthz, true],
@@ -476,6 +589,7 @@ export function createApp({ config, db, ddragon, fetch = globalThis.fetch, log =
     ['POST', /^\/logout$/, open.logout, true],
     ['GET', /^\/api\/collector\/ping$/, open.apiPing, true],
     ['POST', /^\/api\/collector\/matches$/, open.apiUpload, true],
+    ['POST', /^\/api\/collector\/overwatch$/, open.apiUploadOverwatch, true],
     ['GET', /^\/$/, handlers.ranking],
     ['GET', /^\/matches$/, handlers.matchList],
     ['GET', /^\/matches\/([\w-]+)$/, handlers.matchDetail],
@@ -487,6 +601,13 @@ export function createApp({ config, db, ddragon, fetch = globalThis.fetch, log =
     ['GET', /^\/search$/, handlers.search],
     ['GET', /^\/collector$/, handlers.collectorPage],
     ['GET', /^\/collector\/tteongnip-collector\.bat$/, handlers.collectorBatFile],
+    ['GET', /^\/collector\/overwatch-workshop\.txt$/, handlers.workshopFile],
+    ['GET', /^\/ow$/, handlers.owRanking],
+    ['GET', /^\/ow\/matches$/, handlers.owMatchList],
+    ['GET', /^\/ow\/matches\/([\w-]+)$/, handlers.owMatchDetail],
+    ['GET', /^\/ow\/players\/([^/]+)$/, handlers.owPlayerDetail],
+    ['POST', /^\/ow\/players\/([^/]+)\/(link|unlink)$/, handlers.owPlayerLink],
+    ['GET', /^\/ow\/heroes$/, handlers.owHeroList],
   ];
 
   async function notFound(res, ctx) {
@@ -509,7 +630,12 @@ export function createApp({ config, db, ddragon, fetch = globalThis.fetch, log =
         if (!match) continue;
         pathMatched = true;
         if (m !== method) continue;
-        const params = match.slice(1).map((p) => decodeURIComponent(p));
+        let params;
+        try {
+          params = match.slice(1).map((p) => decodeURIComponent(p));
+        } catch {
+          throw new HttpError(404, '주소가 잘못됐어요');
+        }
         if (isOpen) return await fn(req, res, url, ...params);
         if (config.authEnabled && !currentUser(req)) {
           if (method !== 'GET') throw new HttpError(401, '로그인이 필요해요');

@@ -18,6 +18,7 @@ import {
   itemIcons,
   kdaCell,
   matchUrl,
+  owPlayerName,
   playerName,
   playerUrl,
   posBadge,
@@ -32,14 +33,22 @@ import {
 const RIOT_NOTICE =
   "isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.";
 
-export function layout(ctx, { title, active = '', body, bare = false }) {
-  const { config, user } = ctx;
-  const nav = [
+const NAV = {
+  lol: [
     ['/', '랭킹', 'ranking'],
     ['/matches', '최근 내전', 'matches'],
     ['/champions', '챔피언', 'champions'],
-    ['/collector', '수집기', 'collector'],
-  ];
+  ],
+  ow: [
+    ['/ow', '랭킹', 'ranking'],
+    ['/ow/matches', '최근 내전', 'matches'],
+    ['/ow/heroes', '영웅', 'heroes'],
+  ],
+};
+
+export function layout(ctx, { title, active = '', body, bare = false, game = 'lol' }) {
+  const { config, user } = ctx;
+  const nav = [...(NAV[game] || NAV.lol), ['/collector', '수집기', 'collector']];
   const me = user
     ? user.dev
       ? html`<span class="me-dev" title="디스코드 로그인 설정 전이라 모두가 관리자예요">개발 모드</span>`
@@ -63,7 +72,11 @@ export function layout(ctx, { title, active = '', body, bare = false }) {
     <a class="logo" href="/"><img src="/static/favicon.svg" alt="" width="24" height="24"><span>${config.siteName}</span></a>
     ${bare
       ? ''
-      : html`<nav class="nav" aria-label="메뉴">${nav.map(
+      : html`<nav class="games" aria-label="게임">
+      <a href="/" class="game-lol" ${game === 'lol' ? html`aria-current="true"` : ''}>리그 오브 레전드</a>
+      <a href="/ow" class="game-ow" ${game === 'ow' ? html`aria-current="true"` : ''}>오버워치</a>
+    </nav>
+    <nav class="nav" aria-label="메뉴">${nav.map(
           ([href, label, key]) => html`<a href="${href}" ${active === key ? html`aria-current="page"` : ''}>${label}</a>`,
         )}</nav>
     <form class="search" action="/search" role="search"><input type="search" name="q" placeholder="플레이어 검색" aria-label="플레이어 검색" value="${ctx.query || ''}"></form>`}
@@ -391,7 +404,7 @@ ${stats.champions.length
   });
 }
 
-export function collectorPage(ctx, { key, hasNode = true }) {
+export function collectorPage(ctx, { key, workshop = '' }) {
   const server = ctx.config.baseUrl;
   return layout(ctx, {
     title: '수집기',
@@ -412,12 +425,22 @@ export function collectorPage(ctx, { key, hasNode = true }) {
   <p class="small">이 주소에서 <a href="/collector/collector.mjs" download>collector.mjs</a>를 받은 다음:</p>
   <pre><code>node collector.mjs --server ${server} --key ${key}</code></pre>
 </details>
+<h2 id="overwatch">오버워치 내전 기록하기</h2>
+<p>오버워치는 롤처럼 클라이언트에서 전적을 읽을 수 없어서, 커스텀 게임에 <b>떡잎.gg 워크샵 스크립트</b>를 넣어서 기록해요. 같은 수집기가 롤과 오버워치를 함께 올려요.</p>
+<ol class="steps">
+  <li><b>워크샵 로그 켜기</b> <span class="muted">(방장 PC, 처음 한 번)</span><br>오버워치 설정 → 게임플레이 → <b>워크샵 검사기 로그 파일</b>(Enable Workshop Inspector Log File)을 켜요.</li>
+  <li><b>스크립트 넣기</b> <span class="muted">(처음 한 번)</span><br>아래 내용을 전부 복사 → 커스텀 게임 설정 → <b>워크샵</b> → 규칙 붙여넣기 → 커스텀 게임 설정을 프리셋으로 저장해두면 다음부터는 불러오기만 하면 돼요.
+    <textarea class="code" readonly rows="8" aria-label="워크샵 스크립트">${workshop}</textarea>
+    <a class="small" href="/collector/overwatch-workshop.txt" download>파일로 받기</a></li>
+  <li><b>방장 PC에서 수집기 켜기</b><br>경기가 끝나면 1분 안에 자동으로 올라가요. 경기 시작부터 끝까지 기록된 판만 올라가요.</li>
+</ol>
+<p class="small muted">붙여넣기에서 오류가 나면 오버워치 언어를 잠깐 영어로 바꾸고 붙여넣은 뒤 다시 한국어로 돌려보세요. 그래도 안 되면 오류 메시지를 알려주세요.</p>
 <h2>자주 묻는 것</h2>
 <dl class="faq">
   <dt>게임할 때 안 켜놨어요.</dt><dd>나중에 켜도 최근 20판 안에 있는 내전을 찾아서 올려요.</dd>
   <dt>여러 명이 켜놓으면 두 번 기록되나요?</dt><dd>아니요. 같은 판은 한 번만 기록돼요.</dd>
   <dt>롤 계정 정보를 가져가나요?</dt><dd>아니요. 내 PC 롤 클라이언트의 전적 탭에 보이는 사용자 설정 게임 결과만 읽어요. 비밀번호나 계정 정보는 건드리지 않아요.</dd>
-  <dt>솔랭이나 일반 게임도 올라가나요?</dt><dd>아니요. 10명이 하는 사용자 설정 게임(내전)만 올라가요.</dd>
+  <dt>솔랭이나 일반 게임도 올라가나요?</dt><dd>아니요. 롤은 10명이 하는 사용자 설정 게임, 오버워치는 워크샵 스크립트를 넣은 커스텀 게임만 올라가요.</dd>
   <dt>잘못 올라간 판이 있어요.</dt><dd>관리자가 그 내전 화면에서 숨길 수 있어요.</dd>
 </dl>`,
   });
@@ -453,7 +476,7 @@ export function searchPage(ctx, { q, results }) {
     body: html`<h1>"${q}" 검색 결과</h1>
 ${results.length
   ? html`<ul class="search-results">${results.map(
-      (s) => html`<li>${playerName(s, { linkedName: ctx.linkedName(s.puuid) })}<span class="muted">${s.games}판 · ${fmtPct(s.wins, s.games)} · ${s.rating}점</span></li>`,
+      ({ game, s }) => html`<li><span class="game-tag ${game}">${game === 'ow' ? '오버워치' : '롤'}</span>${game === 'ow' ? owPlayerName(s, { linkedName: ctx.linkedName(s.key) }) : playerName(s, { linkedName: ctx.linkedName(s.puuid) })}<span class="muted">${s.games}판 · ${fmtPct(s.wins, s.games)} · ${s.rating}점</span></li>`,
     )}</ul>`
   : html`<p class="muted">내전 기록이 있는 사람 중에 찾지 못했어요.</p>`}`,
   });

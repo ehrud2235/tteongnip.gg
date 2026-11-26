@@ -177,6 +177,7 @@ export function normalizeGame(raw, opts = {}) {
     ok: true,
     match: {
       id: `${g.platformId}_${g.gameId}`,
+      game: 'lol',
       gameId: g.gameId,
       platformId: g.platformId,
       mode: g.mode,

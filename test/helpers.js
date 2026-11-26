@@ -171,3 +171,69 @@ export async function startApp(env = {}, { fetch } = {}) {
   };
 }
 
+
+// 테스트용: 우리 워크샵 스크립트가 남기는 로그 파일 내용을 만든다.
+export const OW_TEAM1 = [
+  ['라인장인', 1, '라인하르트'],
+  ['겐지충', 2, '겐지'],
+  ['트레이서', 2, '트레이서'],
+  ['아나장인', 3, '아나'],
+  ['루시우', 3, '루시우'],
+];
+export const OW_TEAM2 = [
+  ['윈스턴', 1, '윈스턴'],
+  ['위도우', 2, '위도우메이커'],
+  ['솔저', 2, '솔저: 76'],
+  ['메르시', 3, '메르시'],
+  ['젠야타', 3, '젠야타'],
+];
+
+export function makeOwLog({
+  team1 = OW_TEAM1,
+  team2 = OW_TEAM2,
+  score = [3, 2],
+  t0 = 30,
+  t1 = 900,
+  map = '왕의 길',
+  mode = '혼합',
+  clockBase = 20 * 3600,
+  extra = [],
+  sleeps = 1,
+  complete = true,
+  withStart = true,
+} = {}) {
+  const lines = [];
+  const at = (t, s) => {
+    const c = clockBase + t;
+    const hh = String(Math.floor(c / 3600) % 24).padStart(2, '0');
+    const mm = String(Math.floor(c / 60) % 60).padStart(2, '0');
+    const ss = String(c % 60).padStart(2, '0');
+    lines.push(`[${hh}:${mm}:${ss}] ${s}`);
+  };
+  const roster = [...team1.map((p) => [...p, 1]), ...team2.map((p) => [...p, 2])];
+  for (const [name, role, hero, team] of roster) at(5, `TN,hero,5,${name},${team},${role},${hero}`);
+  if (withStart) at(t0, `TN,start,${t0},${map},${mode}`);
+  for (let i = 0; i < sleeps; i++) {
+    at(100 + i * 20, `TN,ab1,${100 + i * 20},아나장인,아나`);
+    at(101 + i * 20, `TN,asleep,${101 + i * 20},${i % 2 ? '위도우' : '윈스턴'}`);
+  }
+  at(120, 'TN,ult,120,겐지충,겐지');
+  at(122, 'TN,kill,122,겐지충,겐지,위도우,위도우메이커,5');
+  at(150, 'TN,kill,150,겐지충,겐지,젠야타,젠야타,6');
+  at(160, 'TN,kill,160,겐지충,겐지,메르시,메르시,6');
+  at(170, 'TN,ab2,170,메르시,메르시');
+  at(171, 'TN,ab2,171,메르시,메르시');
+  at(200, 'TN,ult,200,솔저,솔저: 76');
+  at(202, 'TN,kill,202,트레이서,트레이서,솔저,솔저: 76,1');
+  at(600, 'TN,hero,600,트레이서,1,2,솜브라');
+  for (const [t, s] of extra) at(t, s);
+  if (complete) {
+    roster.forEach(([name, role, , team], i) => {
+      const envKills = name === '루시우' ? 1 : 0;
+      const envDeaths = name === '위도우' ? 1 : 0;
+      at(t1, `TN,stat,${name},${team},${10 + i},${4 + (i % 3)},${3 + (i % 4)},${role === 2 ? 9000 + i * 100 : 4000},${role === 3 ? 8000 + i * 10 : 0},${role === 1 ? 12000 : 0},${2 + (i % 2)},${envKills},${envDeaths},1,7000,${5 + i},2`);
+    });
+    at(t1 + 1, `TN,end,${t1 + 1},${score[0]},${score[1]}`);
+  }
+  return lines.join('\r\n') + '\r\n';
+}

@@ -70,7 +70,7 @@ export function posBadge(pos, manual = false) {
 }
 
 export function resultDots(recent = []) {
-  return html`<span class="dots" title="최근 ${recent.length}경기">${recent.map((w) => html`<i class="${w ? 'w' : 'l'}"></i>`)}</span>`;
+  return html`<span class="dots" title="최근 ${recent.length}경기">${recent.map((w) => html`<i class="${w === null ? 'd' : w ? 'w' : 'l'}"></i>`)}</span>`;
 }
 
 export function streakBadge(streak) {
@@ -103,4 +103,35 @@ export function ratingChart(history) {
 
 export function emptyState(title, body) {
   return html`<div class="empty"><div class="empty-icon" aria-hidden="true">🌱</div><h3>${title}</h3><p>${body}</p></div>`;
+}
+
+// ---------- 오버워치 ----------
+const ROLE_SHORT = { TANK: ['탱', '탱커'], DAMAGE: ['딜', '딜러'], SUPPORT: ['힐', '지원'] };
+
+export const owPlayerUrl = (key) => `/ow/players/${encodeURIComponent(String(key).replace(/^ow:/, ''))}`;
+export const owMatchUrl = (id) => `/ow/matches/${encodeURIComponent(id)}`;
+
+export function roleBadge(role) {
+  const r = ROLE_SHORT[role];
+  if (!r) return html`<span class="role role-none" title="역할 모름">?</span>`;
+  return html`<span class="role role-${role.toLowerCase()}" title="${r[1]}">${r[0]}</span>`;
+}
+
+export function owPlayerName(p, { link = true, linkedName = null } = {}) {
+  const inner = html`<span class="nm">${p.name || '이름 없음'}</span>`;
+  return html`<span class="pn">${link ? html`<a href="${owPlayerUrl(p.key)}">${inner}</a>` : inner}${linkedName ? html`<span class="dc" title="디스코드">@${linkedName}</span>` : ''}</span>`;
+}
+
+export function titleBadges(titles = []) {
+  return titles.map((t) => html`<span class="title-badge" title="${t.why}">${t.name}</span>`);
+}
+
+export function heroChips(names = []) {
+  return html`<span class="hero-chips">${names.map((n) => html`<span class="hero-chip">${n}</span>`)}</span>`;
+}
+
+export function fmtPlayTime(seconds) {
+  const m = Math.round(seconds / 60);
+  if (m < 60) return `${m}분`;
+  return `${Math.floor(m / 60)}시간 ${m % 60}분`;
 }

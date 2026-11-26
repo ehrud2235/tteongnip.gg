@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // 떡잎.gg 수집기
-// 이 PC의 롤 클라이언트 전적 탭에서 사용자 설정 게임(내전) 결과를 읽어 사이트로 보낸다.
+// - 롤: 이 PC의 롤 클라이언트 전적 탭에서 사용자 설정 게임(내전) 결과를 읽어 사이트로 보낸다.
+// - 오버워치: 떡잎.gg 워크샵 스크립트가 남긴 로그 파일(문서\Overwatch\Workshop)에서 끝난 경기를 찾아 보낸다.
 // 다른 파일 없이 이 파일 하나만으로 돌아간다 (Node.js 18 이상).
 //
 //   node collector.mjs --server https://사이트주소 --key 내수집기키
@@ -12,14 +13,16 @@ import http from 'node:http';
 import https from 'node:https';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';
 const POLL_MS = 30_000;
 const PING_MS = 10 * 60_000;
 const HISTORY_COUNT = 20;
 const KEEP_STATE = 500;
+const OW_MAX_AGE_MS = 14 * 24 * 3600 * 1000;
 
 // ---------------- 설정 ----------------
 export function parseArgs(argv = [], env = {}) {
@@ -31,6 +34,7 @@ export function parseArgs(argv = [], env = {}) {
     leagueDir: env.TTEONGNIP_LEAGUE_DIR || '',
     lcuUrl: env.LCU_URL || '',
     lcuToken: env.LCU_TOKEN || '',
+    owDir: env.TTEONGNIP_OW_DIR || '',
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -40,6 +44,7 @@ export function parseArgs(argv = [], env = {}) {
     else if (a === '--once') opts.once = true;
     else if (a === '--state') opts.statePath = next();
     else if (a === '--league-dir') opts.leagueDir = next();
+    else if (a === '--ow-dir') opts.owDir = next();
   }
   opts.server = opts.server.replace(/\/+$/, '');
   return opts;
@@ -197,6 +202,8 @@ export function createServerApi({ server, key, fetch = globalThis.fetch }) {
     ping: () => call('/api/collector/ping'),
     upload: (game, uploader) =>
       call('/api/collector/matches', { method: 'POST', body: JSON.stringify({ game, uploader, collector: VERSION }) }),
+    uploadOverwatch: (log, playedAt, file) =>
+      call('/api/collector/overwatch', { method: 'POST', body: JSON.stringify({ log, playedAt, file, collector: VERSION }) }),
   };
 }
 
@@ -204,15 +211,19 @@ export function createServerApi({ server, key, fetch = globalThis.fetch }) {
 export function loadState(file) {
   try {
     const s = JSON.parse(fs.readFileSync(file, 'utf8'));
-    return { sent: s.sent && typeof s.sent === 'object' ? s.sent : {} };
+    const obj = (v) => (v && typeof v === 'object' ? v : {});
+    return { sent: obj(s.sent), ow: obj(s.ow) };
   } catch {
-    return { sent: {} };
+    return { sent: {}, ow: {} };
   }
 }
 
+const prune = (map) =>
+  Object.fromEntries(Object.entries(map || {}).sort((a, b) => (b[1].at || 0) - (a[1].at || 0)).slice(0, KEEP_STATE));
+
 export function saveState(file, state) {
-  const entries = Object.entries(state.sent).sort((a, b) => (b[1].at || 0) - (a[1].at || 0)).slice(0, KEEP_STATE);
-  state.sent = Object.fromEntries(entries);
+  state.sent = prune(state.sent);
+  state.ow = prune(state.ow);
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, JSON.stringify(state, null, 1));
@@ -248,6 +259,105 @@ export async function syncOnce({ lcu, api, state, save = () => {}, uploader = nu
   return result;
 }
 
+// ---------------- 오버워치 워크샵 로그 ----------------
+/** 로그 파일을 경기 단위로 자른다. TN,end 줄까지 있어야 끝난 경기다. */
+export function splitOwMatches(text) {
+  const blocks = [];
+  let cur = [];
+  for (const line of String(text).split(/\r?\n/)) {
+    const i = line.indexOf('TN,');
+    if (i < 0) continue;
+    cur.push(line);
+    if (line.slice(i).startsWith('TN,end,')) {
+      blocks.push(cur);
+      cur = [];
+    }
+  }
+  return blocks.map((lines) => {
+    const payloads = lines.map((l) => l.slice(l.indexOf('TN,')).trim());
+    const startLine = lines.find((l) => l.includes('TN,start,')) || lines[0];
+    return {
+      text: lines.join('\n'),
+      key: crypto.createHash('sha1').update(payloads.join('\n')).digest('hex').slice(0, 20),
+      clock: /\[(\d{1,2}):(\d{2}):(\d{2})\]/.exec(startLine)?.slice(1).map(Number) || null,
+    };
+  });
+}
+
+/** 파일 이름(Log-2026-11-26-21-03-10.txt 같은)의 날짜와 줄 앞의 [21:15:00] 시간으로 경기 시각을 추정한다. */
+export function estimatePlayedAt(fileName, clock, mtimeMs) {
+  const m = /(\d{4})-(\d{2})-(\d{2})[-_ T](\d{2})-(\d{2})-(\d{2})/.exec(fileName);
+  if (!m || !clock) return mtimeMs;
+  const [, y, mo, d, h, mi, se] = m.map(Number);
+  const fileStart = new Date(y, mo - 1, d, h, mi, se).getTime();
+  let at = new Date(y, mo - 1, d, clock[0], clock[1], clock[2]).getTime();
+  if (at < fileStart - 60_000) at += 24 * 3600 * 1000; // 자정을 넘긴 경우
+  return at;
+}
+
+async function documentsDir(platform) {
+  if (platform === 'win32') {
+    const encoded = Buffer.from("[Environment]::GetFolderPath('MyDocuments')", 'utf16le').toString('base64');
+    const out = (await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded])).trim();
+    if (out) return out;
+  }
+  return path.join(os.homedir(), 'Documents');
+}
+
+/** 오버워치 워크샵 로그 폴더 후보들 (문서 폴더가 OneDrive로 옮겨진 경우까지) */
+export async function findOwDir(opts, platform = process.platform) {
+  if (opts.owDir) return opts.owDir;
+  const candidates = [
+    path.join(await documentsDir(platform), 'Overwatch', 'Workshop'),
+    path.join(os.homedir(), 'Documents', 'Overwatch', 'Workshop'),
+    path.join(os.homedir(), 'OneDrive', 'Documents', 'Overwatch', 'Workshop'),
+    path.join(os.homedir(), 'OneDrive', '문서', 'Overwatch', 'Workshop'),
+  ];
+  return candidates.find((d) => fs.existsSync(d)) || candidates[0];
+}
+
+/** 워크샵 로그 폴더에서 끝난 경기를 찾아 한 번씩만 올린다. */
+export async function syncOverwatch({ dir, api, state, save = () => {}, log = () => {}, seen = new Map(), now = Date.now() }) {
+  const result = { found: false, created: 0, duplicate: 0, ignored: 0 };
+  let names;
+  try {
+    names = fs.readdirSync(dir).filter((n) => n.toLowerCase().endsWith('.txt'));
+  } catch {
+    return result;
+  }
+  result.found = true;
+  state.ow = state.ow || {};
+  for (const name of names) {
+    const file = path.join(dir, name);
+    let stat;
+    try {
+      stat = fs.statSync(file);
+    } catch {
+      continue;
+    }
+    if (now - stat.mtimeMs > OW_MAX_AGE_MS || seen.get(file) === stat.mtimeMs) continue;
+    const blocks = splitOwMatches(fs.readFileSync(file, 'utf8'));
+    for (const b of blocks) {
+      if (state.ow[b.key]) continue;
+      const res = await api.uploadOverwatch(b.text, estimatePlayedAt(name, b.clock, stat.mtimeMs), name);
+      state.ow[b.key] = { status: res.status, at: Date.now() };
+      save(state);
+      if (res.status === 'created') {
+        result.created++;
+        log(`오버워치 내전을 올렸어요: ${res.map || ''} ${res.score ? res.score.join(' : ') : ''} → ${res.url}`);
+      } else if (res.status === 'duplicate') {
+        result.duplicate++;
+        log('이미 기록된 오버워치 내전이에요.');
+      } else {
+        result.ignored++;
+        log(`기록하지 않는 오버워치 경기예요 (${res.reason})`);
+      }
+    }
+    seen.set(file, stat.mtimeMs);
+  }
+  return result;
+}
+
 // ---------------- 실행 ----------------
 function when(ms) {
   if (!ms) return '?';
@@ -267,7 +377,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export async function main(argv = process.argv.slice(2), env = process.env) {
   const opts = parseArgs(argv, env);
   console.log(`떡잎.gg 수집기 v${VERSION}`);
-  console.log('이 창을 켜둔 채로 롤을 하면 내전 결과가 자동으로 올라가요. 끄려면 창을 닫으세요.\n');
+  console.log('이 창을 켜둔 채로 롤이나 오버워치를 하면 내전 결과가 자동으로 올라가요. 끄려면 창을 닫으세요.\n');
   if (!opts.server || !opts.key) {
     console.log('사이트 주소와 수집기 키가 필요해요. 사이트의 [수집기] 메뉴에서 받은 파일로 실행하세요.');
     console.log('직접 실행: node collector.mjs --server https://사이트주소 --key 수집기키');
@@ -301,8 +411,30 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   let waiting = false;
   let lastPing = Date.now();
   let lastError = '';
+  const owDir = await findOwDir(opts);
+  const owSeen = new Map();
+  let owFound = null;
+  let owError = '';
 
   for (;;) {
+    // 오버워치: 롤 클라이언트와 상관없이 매번 확인
+    try {
+      const r = await syncOverwatch({ dir: owDir, api, state, save, log, seen: owSeen });
+      if (r.found !== owFound) {
+        owFound = r.found;
+        log(r.found ? `오버워치 워크샵 로그 폴더 확인: ${owDir}` : `오버워치 워크샵 로그 폴더가 아직 없어요 (오버워치 설정에서 워크샵 로그를 켜면 생겨요): ${owDir}`);
+      }
+      owError = '';
+    } catch (err) {
+      if (err instanceof ServerError && err.status === 401) {
+        log(`수집기 키가 맞지 않아요. ${err.message}`);
+        process.exitCode = 1;
+        return;
+      }
+      if (err.message !== owError) log(`오버워치 기록을 올리지 못했어요: ${err.message}. 잠시 뒤 다시 시도할게요.`);
+      owError = err.message;
+    }
+
     try {
       if (!lcu) {
         const client = await findClient(opts);

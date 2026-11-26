@@ -53,6 +53,28 @@ function bump(map, key, win, extra) {
 
 const avg = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
+/** 처음 10판은 크게, 그 뒤로는 작게 움직인다. */
+export const kFactor = (games) => (games < PROVISIONAL_GAMES ? K_PROVISIONAL : K_NORMAL);
+
+/** 우리 팀 평균 점수가 상대 팀 평균 점수일 때 예상 승률 (Elo) */
+export const expectedWin = (mine, theirs) => 1 / (1 + 10 ** ((theirs - mine) / 400));
+
+export function teamAverage(ratings) {
+  return ratings.length ? avg(ratings) : START_RATING;
+}
+
+/** 현재 연승(+) / 연패(-) */
+export function currentStreak(history) {
+  let streak = 0;
+  const last = history[history.length - 1];
+  for (let i = history.length - 1; i >= 0; i--) {
+    const h = history[i];
+    if (h.draw || last.draw || h.win !== last.win) break;
+    streak += h.win ? 1 : -1;
+  }
+  return streak;
+}
+
 export function computeStats(matches, { minRankedGames = 5 } = {}) {
   const sorted = [...matches].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
   const players = new Map();
@@ -77,13 +99,12 @@ export function computeStats(matches, { minRankedGames = 5 } = {}) {
     const teamRating = (teamId) => avg(m.players.filter((p) => p.teamId === teamId).map((p) => get(p).rating));
     const blue = teamRating(100);
     const red = teamRating(200);
-    const expectedBlue = 1 / (1 + 10 ** ((red - blue) / 400));
+    const expectedBlue = expectedWin(blue, red);
     const d = {};
     for (const p of m.players) {
       const s = get(p);
       const expected = p.teamId === 100 ? expectedBlue : 1 - expectedBlue;
-      const k = s.games < PROVISIONAL_GAMES ? K_PROVISIONAL : K_NORMAL;
-      d[p.puuid] = Math.round(k * ((p.win ? 1 : 0) - expected));
+      d[p.puuid] = Math.round(kFactor(s.games) * ((p.win ? 1 : 0) - expected));
     }
     deltas.set(m.id, d);
 
@@ -135,11 +156,7 @@ export function computeStats(matches, { minRankedGames = 5 } = {}) {
   }
 
   const list = [...players.values()].map((s) => {
-    let streak = 0;
-    for (let i = s.history.length - 1; i >= 0; i--) {
-      if (s.history[i].win !== s.history[s.history.length - 1].win) break;
-      streak += s.history[i].win ? 1 : -1;
-    }
+    const streak = currentStreak(s.history);
     const minutes = s.seconds / 60 || 1;
     return Object.assign(s, {
       winRate: winRate(s.wins, s.games),

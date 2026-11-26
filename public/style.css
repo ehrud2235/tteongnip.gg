@@ -146,6 +146,7 @@ td small { display: block; color: var(--muted); font-size: 11px; }
 .dots i { width: 8px; height: 14px; border-radius: 2px; background: var(--line); }
 .dots i.w { background: var(--blue); }
 .dots i.l { background: var(--red); }
+.dots i.d { background: var(--muted); }
 .streak { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 999px; margin-left: 4px; }
 .streak.hot { background: var(--red-bg); color: var(--red); }
 .streak.cold { background: rgba(138, 147, 166, 0.15); color: var(--muted); }
@@ -294,3 +295,47 @@ pre { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; 
   .wr { min-width: 64px; }
 }
 .grid2 > * { min-width: 0; }
+
+/* 게임 선택 */
+.games { display: flex; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+.games a { padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.games a:hover { color: var(--text); }
+.games a[aria-current="true"].game-lol { background: #1d3b5e; color: #cfe3ff; }
+.games a[aria-current="true"].game-ow { background: #5a3412; color: #ffe0c2; }
+.game-tag { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: #1d3b5e; color: #cfe3ff; }
+.game-tag.ow { background: #5a3412; color: #ffe0c2; }
+
+/* 오버워치 */
+.role { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 5px; font-size: 11px; font-weight: 800; flex: none; }
+.role-tank { background: rgba(76, 141, 255, 0.18); color: #8db8ff; }
+.role-damage { background: rgba(255, 90, 95, 0.18); color: #ff9a9d; }
+.role-support { background: rgba(95, 211, 141, 0.18); color: #8de6b0; }
+.role-none { background: var(--panel-2); color: var(--muted); }
+.title-badge { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: rgba(240, 194, 90, 0.12); color: var(--gold); border: 1px solid rgba(240, 194, 90, 0.35); cursor: help; white-space: nowrap; }
+.titles { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 6px; }
+.hero-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.hero-chip { font-size: 12px; padding: 1px 7px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--line); white-space: nowrap; }
+.hero-main { font-weight: 700; }
+td .hero-main + small { display: block; }
+.mc-score { margin-left: auto; color: var(--text); font-weight: 800; }
+.mc-team li .mc-name { flex: 0 0 auto; max-width: 70%; }
+.mc-team li .mc-hero { color: var(--muted); font-size: 11px; margin-left: auto; flex: 0 4 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-team.draw { background: rgba(138, 147, 166, 0.1); }
+.team-box.draw header { border-left-color: var(--muted); }
+.scoreline { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 0 0 14px; font-weight: 700; color: var(--muted); }
+.scoreline b { font-size: 30px; color: var(--text); letter-spacing: 2px; }
+.scoreline .won { color: var(--blue); }
+.highlights ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.highlights li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.highlights li.bad > span:last-child { color: #ffb3b5; }
+.hl-icon { width: 22px; text-align: center; }
+.fun-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.fun { background: var(--panel-2); border-radius: 8px; padding: 10px 12px; display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: center; }
+.fun span { grid-row: span 2; font-size: 20px; }
+.fun b { font-size: 18px; }
+.fun small { color: var(--muted); font-size: 12px; }
+textarea.code { display: block; width: 100%; margin: 8px 0 4px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; resize: vertical; }
+@media (max-width: 640px) {
+  .games { order: 4; }
+  .games a { padding: 4px 10px; }
+}

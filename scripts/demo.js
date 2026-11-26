@@ -6,6 +6,7 @@ import { openStore } from '../src/db/index.js';
 import { createDDragon } from '../src/ddragon.js';
 import { createApp } from '../src/app.js';
 import { normalizeGame } from '../src/game.js';
+import { normalizeOverwatch } from '../src/overwatch.js';
 
 const NAMES = ['쌈무', '떡볶이', '순대국밥', '정글차이', '미드는내꺼', '원딜장인', '서폿충', '탑신병자', '칼바람전사', '용사냥꾼', '바론스틸', '와드박이', '귀환중', '건들면수플렉스갈기고야차룰로한판'];
 const TAGS = ['KR1', 'KR1', '0001', 'MID', 'KR1', 'ADC', 'SUP', 'KR2', 'KR1', 'DRG', 'KR1', 'WARD', 'KR1', 'KR3'];
@@ -121,5 +122,85 @@ for (let i = 0; i < 40; i++) {
   const r = normalizeGame(raw, { championTags: (id) => ddragon.championTags(id) });
   if (r.ok) await db.insertMatch({ match: r.match, raw, uploadedBy: 'shared' });
 }
+// ---------- 오버워치 가짜 경기 (워크샵 로그 모양 그대로) ----------
+const OW_PLAYERS = [
+  ['라인장인', 1], ['방패든남자', 1], ['자리야누나', 1],
+  ['겐지충', 2], ['에임봇', 2], ['트레뽀', 2], ['위도우장인', 2], ['솔져태엽', 2],
+  ['아나장인', 3], ['루시우붐', 3], ['메르시빌런', 3], ['힐러구함', 3],
+];
+const OW_POOL = {
+  1: ['라인하르트', '윈스턴', '자리야', 'D.Va', '시그마', '오리사', '로드호그', '정커퀸'],
+  2: ['겐지', '트레이서', '위도우메이커', '캐서디', '솔저: 76', '애쉬', '한조', '소전', '에코', '파라'],
+  3: ['아나', '메르시', '루시우', '키리코', '젠야타', '바티스트', '모이라', '브리기테'],
+};
+const OW_MAPS = [['왕의 길', '혼합'], ['일리오스', '쟁탈'], ['66번 국도', '호위'], ['뉴 퀸 스트리트', '밀기'], ['부산', '쟁탈'], ['지브롤터', '호위']];
+const FAV = { 아나장인: '아나', 메르시빌런: '메르시', 루시우붐: '루시우', 겐지충: '겐지', 위도우장인: '위도우메이커', 라인장인: '라인하르트', 자리야누나: '자리야' };
+
+function makeOwDemoLog(i) {
+  const byRole = (r) => shuffle(OW_PLAYERS.filter((p) => p[1] === r).map((p) => p[0]));
+  const tanks = byRole(1);
+  const dps = byRole(2);
+  const sups = byRole(3);
+  const teams = [
+    [[tanks[0], 1], [dps[0], 2], [dps[1], 2], [sups[0], 3], [sups[1], 3]],
+    [[tanks[1], 1], [dps[2], 2], [dps[3], 2], [sups[2], 3], [sups[3], 3]],
+  ];
+  const [map, mode] = pick(OW_MAPS);
+  const t0 = 40;
+  const t1 = t0 + 600 + Math.floor(rand() * 600);
+  const lines = [];
+  const L = (s) => lines.push(`[21:00:00] TN,${s}`);
+  const hero = {};
+  teams.forEach((team, ti) =>
+    team.forEach(([name, role]) => {
+      hero[name] = FAV[name] && rand() < 0.7 ? FAV[name] : pick(OW_POOL[role]);
+      L(`hero,5,${name},${ti + 1},${role},${hero[name]}`);
+    }),
+  );
+  L(`start,${t0},${map},${mode}`);
+  const all = teams.flatMap((team, ti) => team.map(([name, role]) => ({ name, role, team: ti + 1 })));
+  const enemiesOf = (p) => all.filter((q) => q.team !== p.team);
+  for (let t = t0 + 20; t < t1; t += 15 + Math.floor(rand() * 20)) {
+    const a = pick(all);
+    const v = pick(enemiesOf(a));
+    if (hero[a.name] === '아나' && rand() < 0.5) {
+      L(`ab1,${t},${a.name},아나`);
+      if (rand() < 0.6) L(`asleep,${t + 1},${v.name}`);
+    }
+    if (hero[a.name] === '메르시' && rand() < 0.15) L(`ab2,${t},${a.name},메르시`);
+    if (rand() < 0.12) {
+      L(`ult,${t},${a.name},${hero[a.name]}`);
+      if (rand() < 0.3) L(`kill,${t + 2},${v.name},${hero[v.name]},${a.name},${hero[a.name]},1`);
+      else L(`kill,${t + 1},${a.name},${hero[a.name]},${v.name},${hero[v.name]},5`);
+    } else {
+      L(`kill,${t},${a.name},${hero[a.name]},${v.name},${hero[v.name]},${rand() < 0.08 ? 6 : 1}`);
+    }
+  }
+  const team1Power = teams[0].reduce((s, [n]) => s + (skill[n] ?? 0.5), 0);
+  const team2Power = teams[1].reduce((s, [n]) => s + (skill[n] ?? 0.5), 0);
+  const win1 = rand() < team1Power / (team1Power + team2Power);
+  const score = mode === '쟁탈' ? (win1 ? [2, Math.floor(rand() * 2)] : [Math.floor(rand() * 2), 2]) : win1 ? [3, 2] : [1, 2];
+  for (const p of all) {
+    const won = (p.team === 1) === win1;
+    const elims = 8 + Math.floor(rand() * 18) + (won ? 4 : 0);
+    const deaths = 2 + Math.floor(rand() * 9) + (won ? 0 : 2);
+    const dmg = p.role === 3 ? 2500 + rand() * 4000 : p.role === 1 ? 6000 + rand() * 6000 : 7000 + rand() * 9000;
+    const heal = p.role === 3 ? 7000 + rand() * 7000 : 0;
+    const block = p.role === 1 ? 6000 + rand() * 12000 : 0;
+    const env = p.name === '루시우붐' && rand() < 0.6 ? 1 + Math.floor(rand() * 2) : 0;
+    const fall = rand() < 0.15 ? 1 : 0;
+    L(`stat,${p.name},${p.team},${elims},${Math.floor(elims / 2.5)},${deaths},${Math.round(dmg)},${Math.round(heal)},${Math.round(block)},${2 + Math.floor(rand() * 4)},${env},${fall},${Math.floor(rand() * 3)},${Math.round(dmg * 0.8)},${Math.floor(elims * 0.6)},${Math.floor(rand() * 4)}`);
+  }
+  L(`end,${t1 + 1},${score[0]},${score[1]}`);
+  return lines.join('\n');
+}
+for (const n of OW_PLAYERS) skill[n[0]] = 0.35 + rand() * 0.3;
+for (let i = 0; i < 25; i++) {
+  const log = makeOwDemoLog(i);
+  const r = normalizeOverwatch(log, { playedAt: now - (25 - i) * 30 * 3600e3 });
+  if (r.ok) await db.insertMatch({ match: r.match, raw: { log }, uploadedBy: 'shared' });
+  else console.log('demo ow skipped:', r.reason);
+}
+
 const app = createApp({ config, db, ddragon });
 http.createServer(app.handle).listen(config.port, () => console.log(`미리 보기: http://localhost:${config.port}`));

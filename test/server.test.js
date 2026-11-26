@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { csrfToken, makeUploadKey } from '../src/auth.js';
-import { makeLcuGame, puuidOf, startApp } from './helpers.js';
+import { makeLcuGame, makeOwLog, puuidOf, startApp } from './helpers.js';
 
 const upload = (base, key, game) =>
   fetch(`${base}/api/collector/matches`, {
@@ -223,6 +223,86 @@ test('다른 사이트 주소로 튕기지 않는다', async () => {
     const { oauthCookie, state } = await loginFlow(t.base, '//evil.example');
     const cb = await fetch(`${t.base}/auth/callback?code=good-code&state=${state}`, { headers: { cookie: oauthCookie }, redirect: 'manual' });
     assert.equal(cb.headers.get('location'), '/');
+  } finally {
+    await t.close();
+  }
+});
+
+test('오버워치: 업로드, 페이지, 명장면, 계정 연결, 숨기기, 검색, 디스코드 알림', async () => {
+  const hooks = [];
+  const fakeFetch = async (url, init) => {
+    hooks.push(JSON.parse(init.body));
+    return new Response(null, { status: 204 });
+  };
+  const t = await startApp({ UPLOAD_KEY: 'k', DISCORD_WEBHOOK_URL: 'https://discord.test/hook' }, { fetch: fakeFetch });
+  const send = (body) =>
+    fetch(`${t.base}/api/collector/overwatch`, { method: 'POST', headers: { authorization: 'Bearer k', 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  try {
+    assert.equal((await fetch(`${t.base}/api/collector/overwatch`, { method: 'POST', body: '{}' })).status, 401);
+    const log = makeOwLog({ sleeps: 3 });
+    const created = await send({ log, playedAt: Date.UTC(2026, 10, 26, 12) });
+    assert.equal(created.status, 201);
+    const body = await created.json();
+    assert.equal(body.status, 'created');
+    assert.match(body.url, /\/ow\/matches\/OW_/);
+    assert.deepEqual(body.score, [3, 2]);
+    assert.equal((await (await send({ log })).json()).status, 'duplicate');
+    const half = await (await send({ log: makeOwLog({ complete: false }) })).json();
+    assert.equal(half.status, 'ignored');
+    assert.match(half.reason, /끝까지/);
+
+    await t.app.drain();
+    assert.equal(hooks.length, 1);
+    assert.match(hooks[0].embeds[0].title, /오버워치 내전 · 왕의 길 · 3 : 2/);
+    assert.match(hooks[0].embeds[0].description, /아나장인\*\* 수면총으로 3명 재움/);
+    assert.match(hooks[0].embeds[0].fields[0].value, /\*\*라인하르트\*\* 라인장인/);
+
+    const rank = await (await fetch(`${t.base}/ow`)).text();
+    assert.match(rank, /오버워치 내전 랭킹/);
+    assert.match(rank, /아나장인/);
+    assert.match(rank, /aria-current="true">오버워치/);
+    // 롤 랭킹에는 섞이지 않는다
+    assert.match(await (await fetch(`${t.base}/`)).text(), /아직 기록된 내전이 없어요/);
+
+    const id = body.id;
+    const matchHtml = await (await fetch(`${t.base}/ow/matches/${id}`)).text();
+    assert.match(matchHtml, /명장면 · 흑역사/);
+    assert.match(matchHtml, /수면총으로 3명 재움/);
+    assert.match(matchHtml, /궁 쓰고 3초 안에 사망/);
+    assert.match(matchHtml, /솜브라/);
+    // 롤 주소로 들어오면 오버워치 주소로 보낸다
+    const wrong = await fetch(`${t.base}/matches/${id}`, { redirect: 'manual' });
+    assert.equal(wrong.headers.get('location'), `/ow/matches/${id}`);
+
+    const playerUrl = `${t.base}/ow/players/${encodeURIComponent('아나장인')}`;
+    const player = await fetch(playerUrl);
+    assert.equal(player.status, 200);
+    const playerHtml = await player.text();
+    assert.match(playerHtml, /기록실/);
+    assert.match(playerHtml, /수면총으로 재운 횟수/);
+    assert.match(playerHtml, /판당 3\.0명 재움 · 수면총 명중률 100%/);
+    assert.equal((await fetch(`${t.base}/ow/players/${encodeURIComponent('없는사람')}`)).status, 404);
+    assert.equal((await fetch(`${t.base}/ow/players/%E0%A4%A`)).status, 404);
+    assert.match(await (await fetch(`${t.base}/ow/heroes`)).text(), /라인하르트/);
+    assert.match(await (await fetch(`${t.base}/ow/matches`)).text(), /왕의 길/);
+
+    const csrf = csrfToken('dev', 'test-secret');
+    assert.equal((await fetch(`${playerUrl}/link`, form({ _csrf: csrf }))).status, 303);
+    assert.match(await (await fetch(`${t.base}/ow`)).text(), /@개발 모드/);
+
+    const search = await fetch(`${t.base}/search?q=${encodeURIComponent('아나장')}`, { redirect: 'manual' });
+    assert.equal(search.headers.get('location'), `/ow/players/${encodeURIComponent('아나장인')}`);
+
+    const collector = await (await fetch(`${t.base}/collector`)).text();
+    assert.match(collector, /오버워치 내전 기록하기/);
+    assert.match(collector, /TN,start/);
+    const workshop = await fetch(`${t.base}/collector/overwatch-workshop.txt`);
+    assert.match(await workshop.text(), /rule\("떡잎\.gg \| 경기 시작"\)/);
+
+    const hide = await fetch(`${t.base}/matches/${id}/hide`, form({ _csrf: csrf }));
+    assert.equal(hide.headers.get('location'), `/ow/matches/${id}`);
+    assert.match(await (await fetch(`${t.base}/ow`)).text(), /아직 기록된 오버워치 내전이 없어요/);
+    assert.match(await (await fetch(`${t.base}/ow/matches?hidden=1`)).text(), /왕의 길/);
   } finally {
     await t.close();
   }
