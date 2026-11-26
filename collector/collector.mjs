@@ -17,7 +17,7 @@ import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-export const VERSION = '0.2.1';
+export const VERSION = '0.2.2';
 const POLL_MS = 30_000;
 const PING_MS = 10 * 60_000;
 const HISTORY_COUNT = 20;
@@ -264,24 +264,30 @@ export async function syncOnce({ lcu, api, state, save = () => {}, uploader = nu
 }
 
 // ---------------- 오버워치 워크샵 로그 ----------------
-/** 로그 파일을 경기 단위로 자른다. TN,end 줄까지 있어야 끝난 경기다. */
+/**
+ * 로그 파일을 경기 단위로 자른다. TN,end 줄까지 있어야 끝난 경기다.
+ * 보낼 때는 파일 처음부터 그 경기 끝까지 보낸다. 같은 로비에서 이어서 한 판은 경기 시작 전에 고른
+ * 영웅 기록이 앞쪽에 있기 때문이다. (기억용 키는 그 경기 부분만으로 만든다)
+ */
 export function splitOwMatches(text) {
   const blocks = [];
+  const seen = [];
   let cur = [];
   for (const line of String(text).split(/\r?\n/)) {
     const i = line.indexOf('TN,');
     if (i < 0) continue;
+    seen.push(line);
     cur.push(line);
     if (line.slice(i).startsWith('TN,end,')) {
-      blocks.push(cur);
+      blocks.push({ own: cur, upto: seen.slice() });
       cur = [];
     }
   }
-  return blocks.map((lines) => {
-    const payloads = lines.map((l) => l.slice(l.indexOf('TN,')).trim());
-    const startLine = lines.find((l) => l.includes('TN,start,')) || lines[0];
+  return blocks.map(({ own, upto }) => {
+    const payloads = own.map((l) => l.slice(l.indexOf('TN,')).trim());
+    const startLine = own.find((l) => l.includes('TN,start,')) || own[0];
     return {
-      text: lines.join('\n'),
+      text: upto.join('\n'),
       key: crypto.createHash('sha1').update(payloads.join('\n')).digest('hex').slice(0, 20),
       clock: /\[(\d{1,2}):(\d{2}):(\d{2})\]/.exec(startLine)?.slice(1).map(Number) || null,
     };

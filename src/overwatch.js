@@ -87,10 +87,21 @@ export function matchIdOf(lines) {
  */
 export function normalizeOverwatch(text, opts = {}) {
   const { minPlayers = 8, minDuration = 180, playedAt = Date.now() } = opts;
-  let lines = parseLines(text);
-  const endIdx = lines.findIndex((l) => l.type === 'end');
-  if (endIdx < 0) return fail('경기가 끝까지 기록되지 않았어요');
-  lines = lines.slice(0, endIdx + 1);
+  const all = parseLines(text);
+  // 보낸 로그의 마지막 경기(마지막 end)를 기록한다. 그 앞 내용은 영웅 정보를 찾는 데만 쓴다.
+  let lastEnd = -1;
+  all.forEach((l, i) => l.type === 'end' && (lastEnd = i));
+  if (lastEnd < 0) return fail('경기가 끝까지 기록되지 않았어요');
+  let prevEnd = -1;
+  for (let i = lastEnd - 1; i >= 0; i--) {
+    if (all[i].type === 'end') {
+      prevEnd = i;
+      break;
+    }
+  }
+  const context = all.slice(0, prevEnd + 1); // 이전 경기들 (같은 로비에서 이어서 한 경우)
+  const lines = all.slice(prevEnd + 1, lastEnd + 1); // 이 경기
+  const endIdx = lines.length - 1;
   let startIdx = -1;
   lines.forEach((l, i) => l.type === 'start' && (startIdx = i));
   if (startIdx < 0) return fail('경기 시작 기록이 없어요 (경기 도중에 기록을 켰나요?)');
@@ -102,14 +113,37 @@ export function normalizeOverwatch(text, opts = {}) {
   const duration = Math.max(0, t1 - t0);
   const score = [num(end.f[1]), num(end.f[2])];
 
-  // 영웅 기록 (경기 시작 전에 고른 영웅도 쓴다)
+  // 영웅 기록. 경기 시작 전(이전 경기 포함)에 고른 영웅은 경기 시작 시각에 고른 것으로 친다.
   const heroLog = new Map(); // 이름 -> [{ t, team, role, hero }]
-  for (const l of lines) {
-    if (l.type !== 'hero') continue;
+  const preStart = [...context, ...lines.slice(0, startIdx)];
+  const addHero = (l, isPre) => {
     const [t, name, team, role, hero] = l.f;
-    if (!name) continue;
+    if (!name) return;
     if (!heroLog.has(name)) heroLog.set(name, []);
-    heroLog.get(name).push({ t: num(t), team: num(team), role: ROLE_KEYS[num(role)] || heroRole(hero), hero: heroName(hero) });
+    heroLog.get(name).push({ t: isPre ? t0 : num(t), team: num(team), role: ROLE_KEYS[num(role)] || heroRole(hero), hero: heroName(hero) });
+  };
+  for (const l of preStart) if (l.type === 'hero') addHero(l, true);
+  for (const l of lines.slice(startIdx)) if (l.type === 'hero') addHero(l, false);
+  for (const list of heroLog.values()) {
+    // 시작 전 기록은 마지막 것만 남긴다
+    const firstPost = list.findIndex((h, i) => i > 0 && h.t > t0);
+    const pre = firstPost < 0 ? list : list.slice(0, firstPost);
+    if (pre.length > 1) list.splice(0, pre.length - 1);
+  }
+  // 영웅 기록이 없는 사람은 처치·궁극기 기록에 나온 영웅으로 대신한다
+  const mentions = new Map(); // 이름 -> Map(영웅 -> 횟수)
+  const mention = (name, hero) => {
+    if (!name || !hero || name === '0') return;
+    const m = mentions.get(name) || new Map();
+    const key = heroName(hero);
+    m.set(key, (m.get(key) || 0) + 1);
+    mentions.set(name, m);
+  };
+  for (const l of lines.slice(startIdx)) {
+    if (l.type === 'kill') {
+      mention(l.f[1], l.f[2]);
+      mention(l.f[3], l.f[4]);
+    } else if (['ult', 'ab1', 'ab2'].includes(l.type)) mention(l.f[1], l.f[2]);
   }
   const heroAt = (name, t) => {
     const list = heroLog.get(name) || [];
@@ -162,7 +196,9 @@ export function normalizeOverwatch(text, opts = {}) {
     : null;
   if (!winner && objective && (objective.offense === 1 || objective.offense === 2)) {
     const attackersFinished = objective.payload >= 99 || objective.index >= 3;
-    winner = attackersFinished ? objective.offense : 3 - objective.offense;
+    if (attackersFinished) winner = objective.offense;
+    else if (objective.timeLeft <= 1) winner = 3 - objective.offense; // 시간이 다 돼서 수비 승
+    else return fail('경기가 끝나기 전에 종료된 판이에요 (로비로 돌아가기, 다시 시작 등)');
     winnerSource = 'objective';
   }
 
@@ -187,6 +223,11 @@ export function normalizeOverwatch(text, opts = {}) {
     }
     let heroes = [...seconds.values()].filter((h) => h.seconds > 0).sort((a, b) => b.seconds - a.seconds);
     if (!heroes.length && list.length) heroes = [{ hero: list.at(-1).hero, role: list.at(-1).role, seconds: 0 }];
+    if (!heroes.length && mentions.has(s.name)) {
+      const counts = [...mentions.get(s.name).entries()].sort((a, b) => b[1] - a[1]);
+      const total = counts.reduce((a, [, c]) => a + c, 0);
+      heroes = counts.map(([hero, c]) => ({ hero, role: heroRole(hero), seconds: Math.round((duration * c) / total) }));
+    }
     const main = heroes[0] || { hero: '알 수 없음', role: null };
 
     const myUlts = ults.filter((u) => u.name === s.name);
@@ -239,7 +280,7 @@ export function normalizeOverwatch(text, opts = {}) {
   return {
     ok: true,
     match: {
-      id: matchIdOf(lines.slice(0, endIdx + 1)),
+      id: matchIdOf(lines),
       game: 'ow',
       createdAt: Number(playedAt) || Date.now(),
       duration,

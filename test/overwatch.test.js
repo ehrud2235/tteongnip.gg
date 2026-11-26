@@ -142,3 +142,36 @@ test('승패를 직접 정할 수 있다', () => {
   setOwWinner(m, 0);
   assert.ok(m.players.every((p) => p.draw && !p.win));
 });
+
+test('같은 로비에서 이어서 한 판: 앞 경기의 영웅 기록으로 영웅을 찾는다', () => {
+  const first = makeOwLog({ score: [2, 0] });
+  // 두 번째 판에서는 2팀이 영웅을 다시 고르지 않아서 영웅 기록이 없다
+  const second = makeOwLog({ score: [0, 2], t0: 40 })
+    .split('\r\n')
+    .filter((l) => !(l.includes('TN,hero,5,') && OW_TEAM2.some(([n]) => l.includes(`,${n},2,`))))
+    .join('\r\n');
+  const r = normalizeOverwatch(`${first}${second}`);
+  assert.equal(r.ok, true, r.reason);
+  assert.deepEqual(r.match.score, [0, 2]);
+  const by = Object.fromEntries(r.match.players.map((p) => [p.name, p]));
+  assert.equal(by['윈스턴'].hero, '윈스턴');
+  assert.equal(by['메르시'].hero, '메르시');
+  // 앞 내용이 붙어 있어도 경기 번호는 그 경기만으로 정해진다
+  assert.equal(r.match.id, normalizeOverwatch(second).match.id);
+});
+
+test('영웅 기록이 아예 없으면 처치·궁극기 기록에 나온 영웅으로 채운다', () => {
+  const log = makeOwLog()
+    .split('\r\n')
+    .filter((l) => !l.includes('TN,hero,5,겐지충,'))
+    .join('\r\n');
+  const p = normalizeOverwatch(log).match.players.find((x) => x.name === '겐지충');
+  assert.equal(p.hero, '겐지');
+  assert.equal(p.role, 'DAMAGE');
+});
+
+test('호위·혼합을 중간에 끝낸 판(시간이 남았는데 화물이 덜 감)은 기록하지 않는다', () => {
+  const r = normalizeOverwatch(makeOwLog({ score: [0, 0], obj: '1,40,1,120,1' }));
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /끝나기 전에 종료된 판/);
+});

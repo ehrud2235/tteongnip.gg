@@ -135,6 +135,9 @@ test('오버워치 로그 파일에서 끝난 경기만 골라 한 번씩 올린
     const blocks = splitOwMatches(text);
     assert.equal(blocks.length, 2);
     assert.deepEqual(blocks[1].clock, [21, 0, 40]);
+    // 두 번째 판은 앞 판 내용까지 함께 보낸다 (경기 시작 전에 고른 영웅 기록 때문)
+    assert.ok(blocks[1].text.startsWith(blocks[0].text));
+    assert.notEqual(blocks[0].key, blocks[1].key);
     fs.writeFileSync(path.join(dir, 'Log-2026-11-26-19-55-00.txt'), text);
     fs.writeFileSync(path.join(dir, 'notes.md'), 'TN,end,1,2,3');
 
