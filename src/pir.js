@@ -2,6 +2,8 @@
 // 오버워치 리그의 PIR처럼 "그 판 평균 = 100"으로 맞춘 기여도. 100보다 높으면 평균보다 잘한 것이다.
 // 리그의 실제 계산식은 공개되지 않아서, 잘한 것은 더하고 못한 것은 빼는 가중치 합을 그 판 평균으로 나눠 쓴다.
 // 같은 판 안에서는 모두 게임 시간이 같으므로 평균으로 나누면 게임 길이와 상관없이 여러 판을 비교할 수 있다.
+// 오버워치는 한타 상황으로 보정한 PIR 2.0(ow-pir.js)을 쓴다.
+import { computePir2 } from './ow-pir.js';
 
 export const LOL_PIR_WEIGHTS = [
   ['킬', 3],
@@ -82,5 +84,20 @@ export function matchPir(players, { idOf, teamOf, winner, raw }) {
 export const lolMatchPir = (m) =>
   matchPir(m.players, { idOf: (p) => p.puuid, teamOf: (p) => p.teamId, winner: m.winner, raw: lolPirRaw });
 
-export const owMatchPir = (m) =>
-  matchPir(m.players, { idOf: (p) => p.key, teamOf: (p) => p.team, winner: m.winner || null, raw: owPirRaw });
+/** 오버워치: PIR 2.0 재료가 있으면 그걸로(한타 상황 보정), 없으면(예전 기록) 단순 가중치 합으로 */
+export function owMatchPir(m) {
+  if (!m.players.every((p) => p.pir2)) {
+    return matchPir(m.players, { idOf: (p) => p.key, teamOf: (p) => p.team, winner: m.winner || null, raw: owPirRaw });
+  }
+  const scores = computePir2(m.players);
+  const rows = m.players.map((p) => ({ id: p.key, team: p.team, ...scores.get(p.key) })).sort((a, b) => b.pir - a.pir);
+  const out = new Map();
+  rows.forEach((r, i) => out.set(r.id, { pir: r.pir, parts: r.parts, rank: i + 1, mvp: false, ace: false, v2: true }));
+  if (m.winner) {
+    const mvp = rows.find((r) => r.team === m.winner);
+    const ace = rows.find((r) => r.team !== m.winner);
+    if (mvp) out.get(mvp.id).mvp = true;
+    if (ace) out.get(ace.id).ace = true;
+  }
+  return out;
+}

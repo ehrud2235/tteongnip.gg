@@ -261,6 +261,7 @@ ${ctx.user?.isAdmin
   <input type="hidden" name="_csrf" value="${ctx.csrf}">
   <span class="muted small">관리자</span>
   <button class="btn ${m.meta?.hidden ? '' : 'danger'}" type="submit">${m.meta?.hidden ? '다시 보이기' : '이 내전 숨기기 (기록에서 빼기)'}</button>
+  <button class="btn" type="submit" formaction="/matches/${encodeURIComponent(m.id)}/reparse">다시 분석</button>
 </form>`
   : ''}`,
   });

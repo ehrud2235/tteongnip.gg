@@ -9,6 +9,7 @@
 //   TN,obj,공격팀(1|2|0),화물진행도(%),목표번호,남은시간,라운드   ← 경기 끝 순간의 목표 상태 (호위·혼합 승패 판정용)
 //   TN,end,시간,1팀점수,2팀점수
 import crypto from 'node:crypto';
+import { analyzeMatch } from './ow-pir.js';
 
 export const ROLE_KEYS = { 1: 'TANK', 2: 'DAMAGE', 3: 'SUPPORT' };
 export const ROLE_NAMES = { TANK: '탱커', DAMAGE: '딜러', SUPPORT: '지원' };
@@ -118,7 +119,7 @@ export function normalizeOverwatch(text, opts = {}) {
   const preStart = [...context, ...lines.slice(0, startIdx)];
   const addHero = (l, isPre) => {
     const [t, name, team, role, hero] = l.f;
-    if (!name) return;
+    if (!name || !hero) return;
     if (!heroLog.has(name)) heroLog.set(name, []);
     heroLog.get(name).push({ t: isPre ? t0 : num(t), team: num(team), role: ROLE_KEYS[num(role)] || heroRole(hero), hero: heroName(hero) });
   };
@@ -154,17 +155,13 @@ export function normalizeOverwatch(text, opts = {}) {
 
   const after = lines.slice(startIdx);
   const of = (type) => after.filter((l) => l.type === type);
-  const kills = of('kill').map(({ f }) => ({ t: num(f[0]), attacker: f[1], victim: f[3], ability: num(f[5]) }));
-  const ults = of('ult').map(({ f }) => ({ t: num(f[0]), name: f[1], hero: heroName(f[2]) }));
-  const ab1 = of('ab1').map(({ f }) => ({ name: f[1], hero: heroName(f[2]) }));
-  const ab2 = of('ab2').map(({ f }) => ({ name: f[1], hero: heroName(f[2]) }));
-  const asleep = of('asleep').map(({ f }) => ({ t: num(f[0]), name: f[1] }));
 
+  // 개인 기록 (이름이 양 팀에 똑같이 있을 수 있어서 이름+팀으로 구분. 예: 양 팀 AI가 둘 다 한조)
   const stats = new Map();
-  for (const l of lines.slice(startIdx)) {
+  for (const l of after) {
     if (l.type !== 'stat' || !l.f[0]) continue;
     const f = l.f;
-    stats.set(f[0], {
+    stats.set(`${f[0]}|${num(f[1])}`, {
       name: f[0],
       team: num(f[1]),
       elims: num(f[2]),
@@ -186,7 +183,7 @@ export function normalizeOverwatch(text, opts = {}) {
   }
 
   if (stats.size < minPlayers) return fail(`${minPlayers}명이 안 되는 경기예요 (${stats.size}명)`);
-  const teams = new Set([...stats.values()].map((s) => s.team));
+  const teams = new Set([...stats.values()].map((st) => st.team));
   if (!teams.has(1) || !teams.has(2)) return fail('두 팀으로 나뉜 경기가 아니에요');
   if (duration < minDuration) return fail(`너무 짧은 경기예요 (${Math.floor(duration / 60)}분)`);
   // 승패: 팀 점수가 다르면 점수로. 같으면(경쟁전 규칙 없는 호위·혼합은 0 : 0) 경기 끝 순간의 목표 상태로 판정.
@@ -212,75 +209,143 @@ export function normalizeOverwatch(text, opts = {}) {
   for (const st of stats.values()) if (st.team in finishers) finishers[st.team]++;
   const teamSize = Math.max(startRoster[1].size, startRoster[2].size, finishers[1], finishers[2]);
 
-  const teamOf = new Map([...stats.values()].map((s) => [s.name, s.team]));
-  const players = [...stats.values()].map((s) => {
-    // 영웅별 플레이 시간
-    const list = heroLog.get(s.name) || [];
+  // 이름 → 사람 키. 이름이 양 팀에 있으면 팀을 붙인다.
+  const nameTeams = new Map();
+  for (const st of stats.values()) {
+    if (!nameTeams.has(st.name)) nameTeams.set(st.name, new Set());
+    nameTeams.get(st.name).add(st.team);
+  }
+  const keyFor = (name, team) => (nameTeams.get(name)?.size > 1 ? `${playerKey(name)}@${team}` : playerKey(name));
+  /** 기록에 나온 이름을 사람 키로. 같은 이름이 양 팀에 있으면 팀을 알아야 한다. */
+  const resolve = (name, team) => {
+    const ts = nameTeams.get(name);
+    if (!ts) return null;
+    if (ts.size === 1) return { key: keyFor(name, [...ts][0]), team: [...ts][0] };
+    return team === 1 || team === 2 ? { key: keyFor(name, team), team } : null;
+  };
+
+  // 이 팀에 그 이름이 있으면 그 사람 (다른 팀 사람으로 잘못 잡지 않게)
+  const onTeam = (name, team) => (nameTeams.get(name)?.has(team) ? keyFor(name, team) : null);
+  const kills = of('kill').map(({ f }) => {
+    // 새 스크립트: ...,기술,처치팀,죽은팀,처치한사람주변아군수,주변적수
+    let aTeam = f[6] ? num(f[6]) : null;
+    let vTeam = f[7] ? num(f[7]) : null;
+    const self = f[1] === f[3];
+    if (!aTeam && !vTeam) {
+      // 예전 스크립트: 이름으로 팀을 알아낸다. 아군끼리는 처치할 수 없으니 둘은 다른 팀이다.
+      const a = resolve(f[1], null);
+      const v = resolve(f[3], null);
+      if (self) aTeam = vTeam = v?.team ?? a?.team ?? null;
+      else if (a) [aTeam, vTeam] = [a.team, 3 - a.team];
+      else if (v) [aTeam, vTeam] = [3 - v.team, v.team];
+    } else if (!self) {
+      aTeam = aTeam || (vTeam ? 3 - vTeam : null);
+      vTeam = vTeam || (aTeam ? 3 - aTeam : null);
+    }
+    return {
+      t: num(f[0]),
+      attacker: f[1],
+      victim: f[3],
+      aKey: aTeam ? onTeam(f[1], aTeam) : null,
+      vKey: vTeam ? onTeam(f[3], vTeam) : null,
+      aTeam,
+      vTeam,
+      vName: f[3],
+      ability: num(f[5]),
+      allies: f[8] != null && f[8] !== '' ? num(f[8]) : null,
+      enemies: f[9] != null && f[9] !== '' ? num(f[9]) : null,
+    };
+  });
+  const keyOfName = (name) => resolve(name, null)?.key || null;
+  const ults = of('ult').map(({ f }) => ({ t: num(f[0]), name: f[1], key: keyOfName(f[1]), hero: heroName(f[2]) }));
+  const abs = [
+    ...of('ab1').map(({ f }) => ({ name: f[1], key: keyOfName(f[1]), hero: heroName(f[2]), slot: 1 })),
+    ...of('ab2').map(({ f }) => ({ name: f[1], key: keyOfName(f[1]), hero: heroName(f[2]), slot: 2 })),
+  ];
+  const asleep = of('asleep').map(({ f }) => ({ t: num(f[0]), name: f[1], key: keyOfName(f[1]) }));
+  const spawns = of('spawn').map(({ f }) => ({ t: num(f[0]), name: f[1], team: num(f[2]) }));
+  const snaps = of('snap')
+    .map(({ f }) => {
+      const who = resolve(f[1], num(f[2]));
+      return who && { t: num(f[0]), key: who.key, dmg: num(f[3]), heal: num(f[4]), blocked: num(f[5]), ult: num(f[6]) };
+    })
+    .filter(Boolean);
+
+  const players = [...stats.values()].map((st) => {
+    const key = keyFor(st.name, st.team);
+    // 영웅별 플레이 시간 (같은 이름이 양 팀에 있으면 영웅 기록도 팀이 맞는 것만)
+    const list = (heroLog.get(st.name) || []).filter((h) => nameTeams.get(st.name).size === 1 || h.team === st.team);
     const seconds = new Map();
     for (let i = 0; i < list.length; i++) {
       const from = Math.max(t0, list[i].t);
       const to = Math.min(t1, i + 1 < list.length ? list[i + 1].t : t1);
-      const key = list[i].hero;
-      const cur = seconds.get(key) || { hero: key, role: list[i].role, seconds: 0 };
+      const hk = list[i].hero;
+      const cur = seconds.get(hk) || { hero: hk, role: list[i].role, seconds: 0 };
       cur.seconds += Math.max(0, to - from);
-      seconds.set(key, cur);
+      seconds.set(hk, cur);
     }
-    let heroes = [...seconds.values()].filter((h) => h.seconds > 0).sort((a, b) => b.seconds - a.seconds);
-    if (!heroes.length && list.length) heroes = [{ hero: list.at(-1).hero, role: list.at(-1).role, seconds: 0 }];
-    if (!heroes.length && s.finalHero) heroes = [{ hero: s.finalHero, role: s.finalRole || heroRole(s.finalHero), seconds: duration }];
-    if (!heroes.length && mentions.has(s.name)) {
-      const counts = [...mentions.get(s.name).entries()].sort((a, b) => b[1] - a[1]);
-      const total = counts.reduce((a, [, c]) => a + c, 0);
+    let heroes = [...seconds.values()].filter((h) => h.hero && h.seconds > 0).sort((a, b) => b.seconds - a.seconds);
+    if (!heroes.length && list.length && list.at(-1).hero) heroes = [{ hero: list.at(-1).hero, role: list.at(-1).role, seconds: 0 }];
+    if (!heroes.length && st.finalHero) heroes = [{ hero: st.finalHero, role: st.finalRole || heroRole(st.finalHero), seconds: duration }];
+    if (!heroes.length && mentions.has(st.name)) {
+      const counts = [...mentions.get(st.name).entries()].sort((a, b) => b[1] - a[1]);
+      const total = counts.reduce((acc, [, c]) => acc + c, 0);
       heroes = counts.map(([hero, c]) => ({ hero, role: heroRole(hero), seconds: Math.round((duration * c) / total) }));
     }
     const main = heroes[0] || { hero: '알 수 없음', role: null };
 
-    const myUlts = ults.filter((u) => u.name === s.name);
-    const myDeaths = kills.filter((k) => k.victim === s.name);
+    const myUlts = ults.filter((u) => u.key === key);
+    const myDeaths = kills.filter((k) => k.vKey === key);
     const ultDeaths = myUlts.filter((u) => myDeaths.some((k) => k.t >= u.t && k.t <= u.t + 3)).length;
-    const myKills = kills.filter((k) => k.attacker === s.name && k.victim !== s.name);
-    const sleeps = asleep.filter((a) => {
-      const victimTeam = teamOf.get(a.name);
-      if (!victimTeam || victimTeam === s.team) return false;
-      if (heroAt(s.name, a.t)?.hero !== '아나') return false;
+    const myKills = kills.filter((k) => k.aKey === key && k.vKey !== key);
+    const sleeps = asleep.filter((sl) => {
+      const victimTeam = resolve(sl.name, null)?.team;
+      if (!victimTeam || victimTeam === st.team) return false;
+      if (heroAt(st.name, sl.t)?.hero !== '아나') return false;
       // 상대 팀에 아나가 여럿이면 이름순 첫 번째에게 준다
-      const anas = [...stats.values()].filter((o) => o.team === s.team && heroAt(o.name, a.t)?.hero === '아나').map((o) => o.name).sort();
-      return anas[0] === s.name;
+      const anas = [...stats.values()].filter((o) => o.team === st.team && heroAt(o.name, sl.t)?.hero === '아나').map((o) => o.name).sort();
+      return anas[0] === st.name;
     }).length;
 
     return {
-      key: playerKey(s.name),
-      name: s.name,
-      team: s.team,
-      win: winner !== 0 && s.team === winner,
+      key,
+      name: st.name,
+      team: st.team,
+      win: winner !== 0 && st.team === winner,
       draw: winner === 0,
       hero: main.hero,
       role: main.role,
       heroes,
-      elims: s.elims,
-      finalBlows: s.finalBlows,
-      deaths: s.deaths,
-      assists: s.assists,
-      damage: s.damage,
-      healing: s.healing,
-      blocked: s.blocked,
-      taken: s.taken,
-      ults: s.ults || myUlts.length,
-      solo: s.solo,
+      elims: st.elims,
+      finalBlows: st.finalBlows,
+      deaths: st.deaths,
+      assists: st.assists,
+      defAssists: st.defAssists,
+      damage: st.damage,
+      healing: st.healing,
+      blocked: st.blocked,
+      taken: st.taken,
+      ults: st.ults || myUlts.length,
+      solo: st.solo,
       fun: {
         sleeps,
-        sleepShots: ab1.filter((a) => a.name === s.name && a.hero === '아나').length,
-        slept: asleep.filter((a) => a.name === s.name).length,
-        rez: ab2.filter((a) => a.name === s.name && a.hero === '메르시').length,
+        sleepShots: abs.filter((a) => a.key === key && a.slot === 1 && a.hero === '아나').length,
+        slept: asleep.filter((a) => a.key === key).length,
+        rez: abs.filter((a) => a.key === key && a.slot === 2 && a.hero === '메르시').length,
         ultDeaths,
         ultKills: myKills.filter((k) => k.ability === 5).length,
         meleeKills: myKills.filter((k) => k.ability === 6).length,
-        envKills: s.envKills,
-        envDeaths: s.envDeaths,
+        envKills: st.envKills,
+        envDeaths: st.envDeaths,
       },
     };
   });
   players.sort((a, b) => a.team - b.team || roleOrder(a.role) - roleOrder(b.role) || b.damage - a.damage);
+
+  // PIR 2.0 재료: 한타 상황으로 보정한 결정타·데스·피해·치유·궁 효율
+  const sizeOf = { 1: Math.max(startRoster[1].size, finishers[1]), 2: Math.max(startRoster[2].size, finishers[2]) };
+  const analysis = analyzeMatch(players, { t0, t1, teamSize: sizeOf, kills, spawns, ults: ults.filter((u) => u.key), snaps, abs: abs.filter((a) => a.key) });
+  for (const pl of players) pl.pir2 = roundInputs(analysis.inputs.get(pl.key));
 
   return {
     ok: true,
@@ -297,9 +362,15 @@ export function normalizeOverwatch(text, opts = {}) {
       objective,
       teamSize,
       format: teamSize >= 6 ? '6v6' : '5v5',
+      fights: analysis.fights,
+      precise: { spawns: spawns.length > 0, snaps: snaps.length > 0 },
       players,
     },
   };
+}
+
+function roundInputs(i) {
+  return Object.fromEntries(Object.entries(i).map(([k, v]) => [k, Math.round(v * 100) / 100]));
 }
 
 export function roleOrder(role) {
@@ -340,6 +411,17 @@ export function matchHighlights(match) {
     if (bus && bus.deaths >= 6 && bus.deaths >= avgDeaths * 1.5) {
       out.push({ kind: 'bad', icon: '🚌', who: bus, text: `이긴 팀 최다 데스 ${bus.deaths} · 버스 탑승 감사합니다` });
     }
+  }
+  // PIR 2.0 기록이 있으면 한타 장면도
+  if (ps.every((p) => p.pir2)) {
+    const opener = top((p) => p.pir2.firstKills, 2);
+    if (opener) out.push({ kind: 'good', icon: '⚔️', who: opener, text: `한타 첫 킬 ${opener.pir2.firstKills}번` });
+    const clutch = top((p) => p.pir2.clutchKills, 2);
+    if (clutch) out.push({ kind: 'good', icon: '🔄', who: clutch, text: `열세에서 킬 ${clutch.pir2.clutchKills}번` });
+    const sweeper = top((p) => p.pir2.decidedKills, 4);
+    if (sweeper) out.push({ kind: 'bad', icon: '🧹', who: sweeper, text: `이미 끝난 한타에서 킬 줍기 ${sweeper.pir2.decidedKills}번` });
+    const picked = top((p) => p.pir2.picks, 2);
+    if (picked) out.push({ kind: 'bad', icon: '🎯', who: picked, text: `한타도 아닌데 혼자 잡힘 ${picked.pir2.picks}번` });
   }
   const good = out.filter((h) => h.kind === 'good').slice(0, 3);
   const bad = out.filter((h) => h.kind === 'bad').slice(0, 2);

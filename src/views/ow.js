@@ -3,7 +3,7 @@ import { html } from '../util/html.js';
 import { fmtAvg, fmtDuration, fmtNum, fmtPct } from '../util/format.js';
 import { relationList } from '../stats.js';
 import { FORMAT_NAMES, matchHighlights, owFormat, ROLE_NAMES } from '../overwatch.js';
-import { OW_PIR_WEIGHTS, owMatchPir } from '../pir.js';
+import { owMatchPir } from '../pir.js';
 import { layout } from './pages.js';
 import {
   delta,
@@ -11,8 +11,8 @@ import {
   fmtPlayTime,
   heroIcon,
   mvpBadge,
+  owPirExplainer,
   pirCell,
-  pirExplainer,
   owMatchUrl,
   owPlayerName,
   owPlayerUrl,
@@ -120,7 +120,10 @@ export function owMatchesPage(ctx, { matches, page: p, pages, showHidden }) {
     body: html`
 <h1>${showHidden ? '숨긴 오버워치 내전' : '오버워치 최근 내전'}</h1>
 ${formatTabs(ctx, '/ow/matches')}
-${ctx.user?.isAdmin ? html`<p class="small"><a href="/ow/matches${tabQuery(ctx, showHidden ? '' : 'hidden=1')}">${showHidden ? '← 최근 내전으로' : '숨긴 내전 보기'}</a></p>` : ''}
+${ctx.user?.isAdmin
+  ? html`<div class="admin-row small"><a href="/ow/matches${tabQuery(ctx, showHidden ? '' : 'hidden=1')}">${showHidden ? '← 최근 내전으로' : '숨긴 내전 보기'}</a>
+  <form method="post" action="/ow/reparse-all"><input type="hidden" name="_csrf" value="${ctx.csrf}"><button class="link-btn" type="submit" title="저장된 원본 로그로 모든 오버워치 내전을 지금 방식으로 다시 계산해요">모든 내전 다시 분석</button></form></div>`
+  : ''}
 ${matches.length ? html`<div class="mlist">${matches.map((m) => card(ctx, m))}</div>` : emptyState('기록된 내전이 없어요', html`<a href="/collector#overwatch">수집기 안내</a>를 확인해 주세요.`)}
 ${pages > 1
   ? html`<nav class="pager" aria-label="페이지">${p > 1 ? html`<a href="${tabQuery(ctx, `page=${p - 1}${showHidden ? '&hidden=1' : ''}`)}">← 이전</a>` : html`<span></span>`}<span>${p} / ${pages}</span>${p < pages ? html`<a href="${tabQuery(ctx, `page=${p + 1}${showHidden ? '&hidden=1' : ''}`)}">다음 →</a>` : html`<span></span>`}</nav>`
@@ -152,7 +155,7 @@ export function owMatchPage(ctx, m) {
       <td class="num hide-sm">${fmtNum(p.healing)}</td>
       <td class="num hide-md">${fmtNum(p.blocked)}</td>
       <td class="num hide-md">${p.ults}</td>
-      <td class="num">${pirCell(pr.get(p.key))}</td>
+      <td class="num">${pirCell(pr.get(p.key), p.role)}</td>
       <td class="num">${delta(d[p.key])}</td>
     </tr>`,
     )}</tbody>
@@ -172,6 +175,7 @@ ${m.meta?.hidden ? html`<p class="notice warn">숨긴 내전이에요. 랭킹과
 <div class="scoreline">
   <span class="${m.winner === 1 ? 'won' : ''}">1팀${m.winner === 1 ? ' 승리' : ''}</span><b>${m.score[0]} : ${m.score[1]}</b><span class="${m.winner === 2 ? 'won' : ''}">${m.winner === 2 ? '승리 ' : ''}2팀</span>
 </div>
+${m.fights?.count ? html`<p class="muted small center">한타 ${m.fights.count}번 · 1팀 ${m.fights.won[1]}승 · 2팀 ${m.fights.won[2]}승</p>` : ''}
 ${m.winnerSource === 'objective' ? html`<p class="muted small center">팀 점수가 같아서 경기 끝 순간의 화물 진행도로 승패를 판정했어요.</p>` : ''}
 ${m.winnerSource === 'manual' ? html`<p class="muted small center">승패를 직접 정한 판이에요.</p>` : ''}
 ${m.winner === 0 && ctx.user ? html`<p class="notice warn">승패를 알 수 없는 판이에요. 이긴 팀을 골라주면 랭킹에 반영돼요. (아래 <b>승패 정하기</b>)</p>` : ''}
@@ -182,7 +186,7 @@ ${highlights.length
   : ''}
 ${teamBox(1)}
 ${teamBox(2)}
-${pirExplainer(OW_PIR_WEIGHTS)}
+${owPirExplainer(m)}
 ${ctx.user && (m.winnerSource !== 'score' || ctx.user.isAdmin)
   ? html`<details class="edit" ${m.winner === 0 ? html`open` : ''}>
   <summary>승패 정하기${m.winner === 0 ? '' : ' (틀렸을 때)'}</summary>
@@ -199,6 +203,7 @@ ${ctx.user?.isAdmin
   <input type="hidden" name="_csrf" value="${ctx.csrf}">
   <span class="muted small">관리자</span>
   <button class="btn ${m.meta?.hidden ? '' : 'danger'}" type="submit">${m.meta?.hidden ? '다시 보이기' : '이 내전 숨기기 (기록에서 빼기)'}</button>
+  <button class="btn" type="submit" formaction="/matches/${encodeURIComponent(m.id)}/reparse">다시 분석</button>
 </form>`
   : ''}`,
   });

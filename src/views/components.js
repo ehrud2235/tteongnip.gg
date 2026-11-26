@@ -1,6 +1,7 @@
 import { html, raw } from '../util/html.js';
 import { POSITION_NAMES, fmtAvg, fmtPct, fmtRatio, fmtSigned, kdaRatio, winRate } from '../util/format.js';
 import { START_RATING } from '../stats.js';
+import { PART_NAMES, ROLE_WEIGHTS } from '../ow-pir.js';
 
 export const playerUrl = (puuid) => `/players/${encodeURIComponent(puuid)}`;
 export const matchUrl = (id) => `/matches/${encodeURIComponent(id)}`;
@@ -145,10 +146,18 @@ export function heroIcon(owh, name, size = 28, { fallback = 'chip', cls = '' } =
 }
 
 /** PIR (기여도). 그 판 평균이 100 */
-export function pirCell(entry) {
+export function pirCell(entry, role = null) {
   if (!entry) return '';
   const cls = entry.pir >= 130 ? 'great' : entry.pir >= 100 ? 'good' : entry.pir < 70 ? 'low' : '';
-  return html`<span class="pir ${cls}" title="PIR ${entry.pir} · 이 판 ${entry.rank}위 (평균 100)">${entry.pir}</span><small>${entry.rank}위</small>`;
+  let title = `PIR ${entry.pir} · 이 판 ${entry.rank}위 (평균 100)`;
+  if (entry.parts) {
+    const w = ROLE_WEIGHTS[role] || ROLE_WEIGHTS.DAMAGE;
+    title += Object.entries(PART_NAMES)
+      .filter(([k]) => w[k] > 0)
+      .map(([k, name]) => `\n${name} ${entry.parts[k]} (${w[k]}%)`)
+      .join('');
+  }
+  return html`<span class="pir ${cls}" title="${title}">${entry.pir}</span><small>${entry.rank}위</small>`;
 }
 
 export function mvpBadge(entry) {
@@ -163,5 +172,20 @@ export function pirExplainer(weights) {
   return html`<details class="pir-help"><summary>PIR(기여도)이 뭔가요?</summary>
   <p>오버워치 리그의 Player Impact Rating처럼 <b>그 판 평균을 100</b>으로 맞춘 기여도예요. 100보다 높으면 평균보다 잘한 거예요. 리그의 실제 계산식은 공개되지 않아서 아래 점수를 더하고 빼서 계산해요. MVP는 이긴 팀 1등, ACE는 진 팀 1등이에요.</p>
   <ul>${weights.map(([label, w]) => html`<li>${label} <b>${typeof w === 'number' && w > 0 ? `+${w}` : w}</b></li>`)}</ul>
+</details>`;
+}
+
+/** 오버워치 PIR 2.0 설명 */
+export function owPirExplainer({ precise } = {}) {
+  const roleNames = { TANK: '탱커', DAMAGE: '딜러', SUPPORT: '지원' };
+  return html`<details class="pir-help"><summary>PIR(기여도)이 뭔가요?</summary>
+  <p>오버워치 리그의 Player Impact Rating처럼 <b>그 판 평균을 100</b>에 맞춘 기여도예요. 단순 기록이 아니라 <b>한타 상황</b>으로 보정해요. 처치 사이가 15초 넘게 비면 다른 한타로 보고, 매 순간 양 팀 생존 인원을 다시 계산해요. 일곱 가지 요소를 같은 역할끼리 평균 100으로 맞춘 뒤 역할별 비중으로 합쳐요. PIR 숫자에 마우스를 올리면 요소별 점수가 보여요. MVP는 이긴 팀 1등, ACE는 진 팀 1등이에요.</p>
+  ${precise && (!precise.spawns || !precise.snaps) ? html`<p class="small">이 판은 예전 스크립트로 기록돼서 부활 시간과 피해·치유 흐름 일부를 추정했어요.</p>` : ''}
+  <div class="table-wrap"><table class="small-table"><thead><tr><th>요소</th>${Object.values(roleNames).map((n) => html`<th class="num">${n}</th>`)}</tr></thead>
+  <tbody>${Object.entries(PART_NAMES).map(([k, name]) => html`<tr><td>${name}</td>${Object.keys(roleNames).map((r) => html`<td class="num">${ROLE_WEIGHTS[r][k]}%</td>`)}</tr>`)}</tbody></table></div>
+  <p class="small">결정타: 한타 시작 첫 킬 ×1.5 · 열세에서 ×1.3 · 동수 ×1.0 · 1명 우세 ×0.8 · 2명 이상 우세 ×0.5 · 사실상 끝난 한타 ×0.25 · 주변에 아무도 없는 1대1 ×1.2</p>
+  <p class="small">데스: 한타 첫 데스 1.5 · 한타도 아닌데 혼자 잡힘 1.3 · 열세에서 추가 데스 1.1 · 일반 1.0 · 이긴 한타 뒤 0.5 · 진 한타 뒤 리스폰 맞추기 0.1</p>
+  <p class="small">피해·치유: 동수·열세 한타 ×1.0 · 우세 ×0.75 · 결정된 한타 ×0.25 · 한타 밖 ×0.5 &nbsp;|&nbsp; 궁극기: 쓰기 전후 한타 승리 가능성 변화 50% · 궁으로 직접 처치 30% · 충전 뒤 사용 효율 20%</p>
+  <p class="small muted">리그의 실제 계산식은 공개되지 않아서, 우리 내전에 맞춰 조정해 가는 기준이에요.</p>
 </details>`;
 }

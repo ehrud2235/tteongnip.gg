@@ -349,3 +349,36 @@ test('오버워치: 5대5 / 6대6 탭과 승패 정하기', async () => {
     await t.close();
   }
 });
+
+test('관리자: 저장된 원본으로 다시 분석 (직접 정한 승패는 유지)', async () => {
+  const t = await startApp({ UPLOAD_KEY: 'k' });
+  try {
+    const r = await fetch(`${t.base}/api/collector/overwatch`, {
+      method: 'POST',
+      headers: { authorization: 'Bearer k', 'content-type': 'application/json' },
+      body: JSON.stringify({ log: makeOwLog({ score: [0, 0] }) }),
+    });
+    const { id } = await r.json();
+    const csrf = csrfToken('dev', 'test-secret');
+    await fetch(`${t.base}/ow/matches/${id}/winner`, form({ _csrf: csrf, winner: '2' }));
+    // 저장된 기록을 망가뜨려 놓고 다시 분석하면 원본에서 복구된다
+    const broken = await t.db.getMatch(id);
+    broken.players[0].hero = '망가짐';
+    delete broken.players[0].pir2;
+    await t.db.updateMatch(broken);
+    const res = await fetch(`${t.base}/matches/${id}/reparse`, form({ _csrf: csrf }));
+    assert.equal(res.status, 303);
+    assert.equal(res.headers.get('location'), `/ow/matches/${id}`);
+    const fixed = await t.db.getMatch(id);
+    assert.notEqual(fixed.players[0].hero, '망가짐');
+    assert.ok(fixed.players[0].pir2);
+    assert.deepEqual([fixed.winner, fixed.winnerSource], [2, 'manual']);
+    assert.equal((await fetch(`${t.base}/ow/reparse-all`, form({ _csrf: csrf }))).status, 303);
+    const html = await (await fetch(`${t.base}/ow/matches/${id}`)).text();
+    assert.match(html, /한타 \d+번/);
+    assert.match(html, /PIR\(기여도\)이 뭔가요/);
+    assert.match(html, /유효 결정타/);
+  } finally {
+    await t.close();
+  }
+});

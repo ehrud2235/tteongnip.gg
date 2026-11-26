@@ -340,6 +340,24 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
       redirect(res, `/ow/players/${encodeURIComponent(name.toLowerCase())}`);
     },
 
+    async matchReparse(req, res, ctx, url, id) {
+      await readForm(req, ctx);
+      if (!ctx.user.isAdmin) throw new HttpError(403, '관리자만 할 수 있어요');
+      const m = await db.getMatch(id);
+      if (!m) return notFound(res, ctx);
+      if (!(await reparseMatch(m))) throw new HttpError(400, '원본 기록이 없거나 다시 분석할 수 없는 판이에요');
+      invalidate();
+      redirect(res, `${m.game === 'ow' ? '/ow' : ''}/matches/${encodeURIComponent(id)}`);
+    },
+
+    async owReparseAll(req, res, ctx) {
+      await readForm(req, ctx);
+      if (!ctx.user.isAdmin) throw new HttpError(403, '관리자만 할 수 있어요');
+      for (const m of (await db.listMatches({ includeHidden: true })).filter((x) => x.game === 'ow')) await reparseMatch(m);
+      invalidate();
+      redirect(res, '/ow/matches');
+    },
+
     async owRanking(req, res, ctx) {
       sendHtml(res, 200, owPages.owRankingPage(ctx));
     },
@@ -592,6 +610,31 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
     return { matches: all.slice((page - 1) * MATCHES_PER_PAGE, page * MATCHES_PER_PAGE), page, pages: pagesCount, showHidden };
   }
 
+  /** 저장된 원본으로 지금 방식대로 다시 계산한다. 직접 고친 승패·라인은 유지한다. */
+  async function reparseMatch(m) {
+    const raw = await db.getRaw(m.id);
+    if (!raw) return false;
+    let next;
+    if (m.game === 'ow') {
+      const r = normalizeOverwatch(raw.log, { minPlayers: 2, minDuration: 0, playedAt: m.createdAt });
+      if (!r.ok) return false;
+      next = r.match;
+      if (m.winnerSource === 'manual') setOwWinner(next, m.winner);
+    } else {
+      const r = normalizeGame(raw, { minPlayers: 2, minDuration: 0, allowedModes: [m.mode], championTags: (id) => ddragon.championTags(id) });
+      if (!r.ok) return false;
+      next = r.match;
+      for (const old of m.players) {
+        const p = next.players.find((x) => x.participantId === old.participantId);
+        if (p && old.positionManual) Object.assign(p, { position: old.position, positionManual: true });
+      }
+    }
+    next.id = m.id;
+    next.createdAt = m.createdAt;
+    await db.updateMatch(next);
+    return true;
+  }
+
   /** 숨긴 내전은 관리자만 볼 수 있다. */
   async function findMatch(ctx, id) {
     const m = ctx.data.byId.get(id) || (ctx.user?.isAdmin ? await db.getMatch(id) : null);
@@ -637,6 +680,8 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
     ['GET', /^\/matches\/([\w-]+)$/, handlers.matchDetail],
     ['POST', /^\/matches\/([\w-]+)\/positions$/, handlers.matchPositions],
     ['POST', /^\/matches\/([\w-]+)\/(hide|unhide)$/, handlers.matchHide],
+    ['POST', /^\/matches\/([\w-]+)\/reparse$/, handlers.matchReparse],
+    ['POST', /^\/ow\/reparse-all$/, handlers.owReparseAll],
     ['GET', /^\/players\/([\w-]+)$/, handlers.playerDetail],
     ['POST', /^\/players\/([\w-]+)\/(link|unlink)$/, handlers.playerLink],
     ['GET', /^\/champions$/, handlers.championList],
