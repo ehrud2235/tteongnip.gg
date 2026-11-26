@@ -7,7 +7,7 @@ import { createDDragon } from '../src/ddragon.js';
 import { createApp } from '../src/app.js';
 import { normalizeGame } from '../src/game.js';
 
-const NAMES = ['쌈무', '떡볶이', '순대국밥', '정글차이', '미드는내꺼', '원딜장인', '서폿충', '탑신병자', '칼바람전사', '용사냥꾼', '바론스틸', '와드박이', '귀환중', '점멸없음'];
+const NAMES = ['쌈무', '떡볶이', '순대국밥', '정글차이', '미드는내꺼', '원딜장인', '서폿충', '탑신병자', '칼바람전사', '용사냥꾼', '바론스틸', '와드박이', '귀환중', '건들면수플렉스갈기고야차룰로한판'];
 const TAGS = ['KR1', 'KR1', '0001', 'MID', 'KR1', 'ADC', 'SUP', 'KR2', 'KR1', 'DRG', 'KR1', 'WARD', 'KR1', 'KR3'];
 // 라인별 챔피언 번호 (탑, 정글, 미드, 원딜, 서폿)
 const POOL = [

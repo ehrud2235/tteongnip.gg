@@ -95,7 +95,7 @@ function matchCard(ctx, m) {
     <div class="mc-teams">${[100, 200].map(
       (t) => html`<div class="mc-team ${t === 100 ? 'blue' : 'red'} ${m.winner === t ? 'won' : 'lost'}">
         <span class="mc-label">${t === 100 ? '블루' : '레드'} · ${m.winner === t ? '승리' : '패배'}</span>
-        <ul>${team(t).map((p) => html`<li>${champIcon(ctx.dd, p.championId, 20)}<span>${p.name}</span></li>`)}</ul>
+        <ul>${team(t).map((p) => html`<li>${champIcon(ctx.dd, p.championId, 20)}<span title="${p.name}${p.tag ? `#${p.tag}` : ''}">${p.name}</span></li>`)}</ul>
       </div>`,
     )}</div>
   </a>`;

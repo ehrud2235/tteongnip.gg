@@ -171,12 +171,12 @@ td small { display: block; color: var(--muted); font-size: 11px; }
 
 /* 내전 카드 */
 .mlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
-.mcard { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+.mcard { display: block; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
 .mcard:hover { border-color: #3a4252; color: inherit; }
 .mc-meta { display: flex; gap: 10px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
 .mc-meta b { color: var(--text); }
-.mc-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.mc-team { border-radius: 8px; padding: 6px 8px; }
+.mc-teams { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.mc-team { border-radius: 8px; padding: 6px 8px; min-width: 0; }
 .mc-team.won.blue, .mc-team.won.red { background: var(--blue-bg); }
 .mc-team.lost { background: var(--red-bg); }
 .mc-label { font-size: 11px; font-weight: 700; color: var(--muted); }
@@ -184,7 +184,7 @@ td small { display: block; color: var(--muted); font-size: 11px; }
 .mc-team.lost .mc-label { color: var(--red); }
 .mc-team ul { list-style: none; margin: 4px 0 0; padding: 0; }
 .mc-team li { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 1px 0; min-width: 0; }
-.mc-team li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-team li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .mc-team li img { border-radius: 4px; flex: none; }
 
 /* 내전 상세 */
@@ -229,8 +229,10 @@ select { background: var(--bg); color: var(--text); border: 1px solid var(--line
 .chart-line { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .chart-base { stroke: var(--line); stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
 .rel { list-style: none; margin: 0; padding: 0; }
-.rel li { display: grid; grid-template-columns: 1fr auto 90px; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.rel li { display: grid; grid-template-columns: minmax(0, 1fr) auto 90px; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
 .rel li:first-child { border-top: 0; }
+.rel .pn { flex-wrap: nowrap; min-width: 0; overflow: hidden; }
+.rel .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .plist { display: flex; flex-direction: column; gap: 6px; }
 .prow { display: grid; grid-template-columns: 90px auto 1fr auto auto 50px; gap: 14px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: var(--radius); padding: 8px 12px; }
