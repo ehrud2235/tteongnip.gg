@@ -348,3 +348,5 @@ textarea.code { display: block; width: 100%; margin: 8px 0 4px; background: var(
 .hero-text { color: var(--muted); font-size: 11px; }
 .mc-team li .hi.mc-hero { margin-left: auto; border-radius: 4px; flex: none; min-width: 20px; }
 .highlights .hi { border-radius: 4px; }
+
+.share-code { display: inline-block; font: 700 18px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 3px; padding: 4px 12px; margin: 4px 0; border-radius: 8px; background: #5a3412; color: #ffe0c2; user-select: all; }

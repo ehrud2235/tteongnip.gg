@@ -429,12 +429,16 @@ export function collectorPage(ctx, { key, workshop = '' }) {
 <p>오버워치는 롤처럼 클라이언트에서 전적을 읽을 수 없어서, 커스텀 게임에 <b>떡잎.gg 워크샵 스크립트</b>를 넣어서 기록해요. 같은 수집기가 롤과 오버워치를 함께 올려요.</p>
 <ol class="steps">
   <li><b>워크샵 로그 켜기</b> <span class="muted">(방장 PC, 처음 한 번)</span><br>오버워치 설정 → 게임플레이 → <b>워크샵 검사기 로그 파일</b>(Enable Workshop Inspector Log File)을 켜요.</li>
-  <li><b>스크립트 넣기</b> <span class="muted">(처음 한 번)</span><br>아래 내용을 전부 복사 → 커스텀 게임 설정 → <b>워크샵</b> → 규칙 붙여넣기 → 커스텀 게임 설정을 프리셋으로 저장해두면 다음부터는 불러오기만 하면 돼요.
-    <textarea class="code" readonly rows="8" aria-label="워크샵 스크립트">${workshop}</textarea>
-    <a class="small" href="/collector/overwatch-workshop.txt" download>파일로 받기</a></li>
+  <li><b>방 만들 때 코드 가져오기</b><br>커스텀 게임 → 설정 → <b>코드 가져오기</b> → <span class="share-code">${ctx.config.owWorkshopCode}</span><br>
+    <small class="muted">맵, 인원(5대5 · 6대6) 같은 설정은 코드를 가져온 다음에 바꿔도 기록돼요. 워크샵 규칙만 지우지 마세요.</small></li>
   <li><b>방장 PC에서 수집기 켜기</b><br>경기가 끝나면 1분 안에 자동으로 올라가요. 경기 시작부터 끝까지 기록된 판만 올라가요.</li>
 </ol>
-<p class="small muted">한국어 오버워치에서는 붙여넣기가 안 돼요. Battle.net 게임 설정에서 <b>텍스트 언어를 English</b>로 바꾸고 붙여넣은 다음, 커스텀 게임 설정에서 <b>공유 코드</b>를 만들어 두세요. 한국어로 돌려도 그 코드로 가져오기는 돼요.</p>
+<details class="panel">
+  <summary>스크립트 직접 붙여넣기 (코드가 안 될 때, 스크립트를 고쳤을 때)</summary>
+  <p class="small">한국어 오버워치에서는 붙여넣기가 안 돼요. Battle.net 게임 설정에서 <b>텍스트 언어를 English</b>로 바꾸고 → 커스텀 게임 설정 → 워크샵 → 붙여넣기 → <b>공유 코드</b>를 만든 다음 한국어로 돌리세요. 새 코드는 관리자에게 알려주세요.</p>
+  <textarea class="code" readonly rows="8" aria-label="워크샵 스크립트">${workshop}</textarea>
+  <a class="small" href="/collector/overwatch-workshop.txt" download>파일로 받기</a>
+</details>
 <h2>자주 묻는 것</h2>
 <dl class="faq">
   <dt>게임할 때 안 켜놨어요.</dt><dd>나중에 켜도 최근 20판 안에 있는 내전을 찾아서 올려요.</dd>
