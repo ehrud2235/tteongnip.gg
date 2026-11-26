@@ -434,7 +434,7 @@ export function collectorPage(ctx, { key, workshop = '' }) {
     <a class="small" href="/collector/overwatch-workshop.txt" download>파일로 받기</a></li>
   <li><b>방장 PC에서 수집기 켜기</b><br>경기가 끝나면 1분 안에 자동으로 올라가요. 경기 시작부터 끝까지 기록된 판만 올라가요.</li>
 </ol>
-<p class="small muted">붙여넣기에서 오류가 나면 오버워치 언어를 잠깐 영어로 바꾸고 붙여넣은 뒤 다시 한국어로 돌려보세요. 그래도 안 되면 오류 메시지를 알려주세요.</p>
+<p class="small muted">한국어 오버워치에서는 붙여넣기가 안 돼요. Battle.net 게임 설정에서 <b>텍스트 언어를 English</b>로 바꾸고 붙여넣은 다음, 커스텀 게임 설정에서 <b>공유 코드</b>를 만들어 두세요. 한국어로 돌려도 그 코드로 가져오기는 돼요.</p>
 <h2>자주 묻는 것</h2>
 <dl class="faq">
   <dt>게임할 때 안 켜놨어요.</dt><dd>나중에 켜도 최근 20판 안에 있는 내전을 찾아서 올려요.</dd>
