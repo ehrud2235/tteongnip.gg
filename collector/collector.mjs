@@ -17,7 +17,7 @@ import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-export const VERSION = '0.2.0';
+export const VERSION = '0.2.1';
 const POLL_MS = 30_000;
 const PING_MS = 10 * 60_000;
 const HISTORY_COUNT = 20;
@@ -75,11 +75,15 @@ function run(cmd, args) {
   });
 }
 
+/** PowerShell 명령 실행. 한국어 폴더 이름("문서")이 깨지지 않게 결과를 UTF-8로 받는다. */
+function powershell(script) {
+  const encoded = Buffer.from(`[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ${script}`, 'utf16le').toString('base64');
+  return run('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded]);
+}
+
 async function processCommandLine(platform) {
   if (platform === 'win32') {
-    const ps = "Get-CimInstance -ClassName Win32_Process -Filter \"Name = 'LeagueClientUx.exe'\" | ForEach-Object { $_.CommandLine }";
-    const encoded = Buffer.from(ps, 'utf16le').toString('base64');
-    return run('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded]);
+    return powershell("Get-CimInstance -ClassName Win32_Process -Filter \"Name = 'LeagueClientUx.exe'\" | ForEach-Object { $_.CommandLine }");
   }
   if (platform === 'darwin') {
     const out = await run('ps', ['-A', '-o', 'args=']);
@@ -295,11 +299,12 @@ export function estimatePlayedAt(fileName, clock, mtimeMs) {
   return at;
 }
 
+let cachedDocuments = null;
 async function documentsDir(platform) {
+  if (cachedDocuments) return cachedDocuments;
   if (platform === 'win32') {
-    const encoded = Buffer.from("[Environment]::GetFolderPath('MyDocuments')", 'utf16le').toString('base64');
-    const out = (await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded])).trim();
-    if (out) return out;
+    const out = (await powershell("[Environment]::GetFolderPath('MyDocuments')")).trim();
+    if (out && !out.includes('\uFFFD')) return (cachedDocuments = out);
   }
   return path.join(os.homedir(), 'Documents');
 }
@@ -411,14 +416,15 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   let waiting = false;
   let lastPing = Date.now();
   let lastError = '';
-  const owDir = await findOwDir(opts);
+  let owDir = await findOwDir(opts);
   const owSeen = new Map();
   let owFound = null;
   let owError = '';
 
   for (;;) {
-    // 오버워치: 롤 클라이언트와 상관없이 매번 확인
+    // 오버워치: 롤 클라이언트와 상관없이 매번 확인 (폴더가 아직 없으면 생길 때까지 다시 찾는다)
     try {
+      if (!owFound) owDir = await findOwDir(opts);
       const r = await syncOverwatch({ dir: owDir, api, state, save, log, seen: owSeen });
       if (r.found !== owFound) {
         owFound = r.found;
