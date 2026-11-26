@@ -180,6 +180,9 @@ test('디스코드 로그인: 멤버만 들어오고, 개인 수집기 키를 �
     assert.ok(batText.includes('set "TTEONGNIP_SERVER=http://tteongnip.test"'));
     assert.ok(batText.includes('\r\n'));
     assert.ok(!/[^\r]\n/.test(batText), '배치 파일은 줄바꿈이 CRLF여야 해요');
+    assert.ok(/^[\x00-\x7F]*$/.test(batText), '배치 파일은 영어(ASCII)로만 써야 한국어 Windows에서 안 깨져요');
+    assert.ok(batText.includes('if not defined NODE if exist "%ProgramFiles%\\nodejs\\node.exe"'));
+    assert.ok(batText.includes('"%NODE%" "%SCRIPT%"'));
 
     const ping = await fetch(`${t.base}/api/collector/ping`, { headers: { authorization: `Bearer ${key}` } });
     assert.deepEqual((await ping.json()).uploader, '서버닉');
