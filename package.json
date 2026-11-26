@@ -1,0 +1,20 @@
+{
+  "name": "tteongnip-gg",
+  "version": "0.1.0",
+  "private": true,
+  "description": "우리 디스코드 서버 전용 롤 내전 전적 사이트",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env src/server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env --watch src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test",
+    "collector": "node collector/collector.mjs",
+    "demo": "node --disable-warning=ExperimentalWarning scripts/demo.js"
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
+  }
+}

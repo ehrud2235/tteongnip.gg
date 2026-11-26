@@ -1,0 +1,148 @@
+# 🌱 떡잎.gg
+
+우리 디스코드 서버 전용 **롤 내전 전적 사이트**.
+팀이 매번 바뀌어도 사람마다 전적·KDA·점수를 쌓아서 순위를 매겨요.
+
+- **랭킹**: 점수, 승률, 평균 KDA, 모스트 챔피언, 최근 10판, 연승/연패
+- **내전 상세**: 10명 KDA, 피해량, CS, 골드, 시야, 아이템, 스펠, 룬, 밴, MVP/ACE, 판마다 점수 변화
+- **개인 페이지**: 점수 그래프, 챔피언별·라인별 승률, 같은 팀 궁합, 천적
+- **챔피언 통계**: 우리 내전 기준 픽률, 승률, 밴 수
+- **디스코드 연동**: 우리 서버 멤버만 로그인해서 볼 수 있고, 내전이 끝나면 채널에 결과가 자동으로 올라가요
+
+## 어떻게 돌아가나요
+
+일반 사용자 설정 게임(내전)은 라이엇 API로 가져올 수 없어요. 그래서 내전에 참가한 사람 중 **한 명의 PC에서 작은 수집기**를 켜두면,
+수집기가 그 PC 롤 클라이언트의 전적 탭에서 내전 결과(10명 전원)를 읽어 사이트로 보내요.
+
+```
+[롤 클라이언트] --(내 PC 안에서만)--> [수집기] --(인터넷)--> [떡잎.gg 서버] --> 웹사이트
+                                                              └--> 디스코드 채널 알림
+```
+
+- 게임 중에 수집기를 안 켜놨어도, 나중에 켜면 최근 20판 안의 내전을 찾아서 올려요.
+- 여러 명이 수집기를 켜도 같은 판은 한 번만 기록돼요.
+- 솔랭·일반·연습 모드는 올라가지 않아요. 10명이 하는 사용자 설정 게임만 기록해요.
+- 라인은 롤이 남긴 단서(추정 라인, 강타, 서폿 아이템, CS)로 자동 추정해요. 틀리면 내전 화면에서 멤버 누구나 고칠 수 있어요.
+
+## 미리 보기 (가짜 데이터)
+
+Node.js 22.13 이상이 필요해요.
+
+```bash
+npm install
+```
+
+```bash
+npm run demo
+```
+
+브라우저에서 http://localhost:3000 을 열면 가짜 내전 40판으로 채운 사이트가 보여요.
+
+## 배포하기 (무료)
+
+추천 조합: **Render**(웹 서버, 무료) + **Neon**(Postgres DB, 무료).
+Render 무료 서버는 디스크가 없어서 서버가 다시 켜질 때 파일이 지워져요. 그래서 기록은 꼭 외부 DB에 저장해야 해요.
+
+1. **DB 만들기**: [Neon](https://neon.tech)에서 무료 프로젝트를 만들고 연결 주소(`postgresql://...`)를 복사해요.
+2. **Render에 올리기**: [Render](https://render.com) → New → Blueprint → 이 저장소를 고르면 `render.yaml` 설정대로 서비스가 만들어져요.
+3. **환경 변수 넣기**: Render 서비스의 Environment에 아래 값을 넣어요.
+   - `DATABASE_URL`: 1번에서 복사한 주소
+   - 디스코드 값들: 아래 "디스코드 연결" 참고
+   - `SESSION_SECRET`은 Render가 자동으로 만들어줘요. **바꾸지 마세요** (바꾸면 모두 다시 로그인하고 수집기도 다시 받아야 해요).
+4. 배포가 끝나면 `https://서비스이름.onrender.com` 으로 들어가요.
+
+무료 서버는 15분 동안 아무도 안 들어오면 잠들어서, 처음 들어갈 때 1분쯤 걸려요.
+수집기가 켜져 있는 동안에는 10분마다 신호를 보내서 서버가 잠들지 않아요.
+
+## 디스코드 연결
+
+봇은 필요 없어요. 디스코드 앱(로그인용)과 채널 웹후크(결과 알림용)만 있으면 돼요.
+
+### 1. 로그인 (우리 서버 멤버만 보기)
+
+1. https://discord.com/developers/applications → **New Application** → 이름은 `떡잎.gg`
+2. 왼쪽 **OAuth2** 메뉴에서
+   - **Client ID** 복사 → `DISCORD_CLIENT_ID`
+   - **Reset Secret** 눌러서 나온 값 복사 → `DISCORD_CLIENT_SECRET`
+   - **Redirects**에 `https://사이트주소/auth/callback` 추가하고 저장
+3. 디스코드 앱 → 설정 → 고급 → **개발자 모드** 켜기
+4. 우리 서버 아이콘 우클릭 → **서버 ID 복사** → `DISCORD_GUILD_ID`
+5. 내 프로필 우클릭 → **사용자 ID 복사** → `ADMIN_DISCORD_IDS` (관리자가 여러 명이면 쉼표로)
+
+이 값들이 없으면 사이트가 "개발 모드"로 열려서 주소를 아는 누구나 볼 수 있어요.
+
+### 2. 결과 알림 (선택)
+
+1. 결과를 올릴 채널 → 채널 편집 → **연동** → **웹후크** → 새 웹후크
+2. **웹후크 URL 복사** → `DISCORD_WEBHOOK_URL`
+
+## 수집기 쓰는 법
+
+1. 수집기를 켤 사람의 PC에 [Node.js](https://nodejs.org) LTS 설치 (처음 한 번)
+2. 사이트에 로그인 → **수집기** 메뉴 → **수집기 다운로드 (Windows)**
+   - 내 전용 키가 들어 있는 `tteongnip-collector.bat` 파일이에요. 다른 사람에게 주지 마세요.
+3. 받은 파일을 더블클릭 → 검은 창을 켜둔 채로 롤 하기
+
+실행할 때마다 서버에서 최신 수집기를 받아오기 때문에, 수집기를 고쳐도 다시 나눠줄 필요가 없어요.
+맥이나 직접 실행할 때는 수집기 페이지에 있는 명령어를 쓰면 돼요.
+
+```bash
+node collector.mjs --server https://사이트주소 --key 수집기키
+```
+
+## 점수 계산
+
+- 모두 1000점에서 시작해요 (Elo 방식).
+- 판마다 두 팀의 평균 점수로 예상 승률을 구해요. 예상보다 잘하면 많이 오르고 못하면 많이 내려가요.
+  - 비슷한 팀끼리면 이기면 +12, 지면 -12쯤 바뀌어요.
+  - 처음 10판은 배치 기간이라 두 배 가까이 크게 움직여요 (기본 ±20).
+- `MIN_RANKED_GAMES`판(기본 5판)부터 순위에 올라가요. 그 전엔 "배치 중"에 보여요.
+- 잘못 올라간 판은 관리자가 숨기면 점수 계산에서 빠져요. 점수는 항상 전체 기록으로 처음부터 다시 계산돼요.
+
+## 환경 변수
+
+| 이름 | 설명 |
+|---|---|
+| `BASE_URL` | 사이트 주소. Render에서는 자동 |
+| `SESSION_SECRET` | 로그인·수집기 키용 비밀값. 꼭 정해두고 바꾸지 않기 |
+| `DATABASE_URL` | Postgres 주소. 없으면 `data/tteongnip.db`(SQLite) 파일에 저장 |
+| `DISCORD_CLIENT_ID` · `DISCORD_CLIENT_SECRET` · `DISCORD_GUILD_ID` | 디스코드 로그인 |
+| `DISCORD_WEBHOOK_URL` | 내전 결과 알림 채널 |
+| `ADMIN_DISCORD_IDS` | 관리자 디스코드 ID (쉼표로 구분) |
+| `MIN_RANKED_GAMES` | 순위에 오르는 최소 판수 (기본 5) |
+| `ALLOWED_MODES` | 기록할 모드: `CLASSIC`, `ARAM` (기본 `CLASSIC`) |
+| `MIN_PLAYERS` | 기록할 최소 인원 (기본 10) |
+| `MIN_GAME_SECONDS` | 이보다 짧은 게임은 무시 (기본 300초) |
+| `UPLOAD_KEY` | 모두 같은 키를 쓸 때만. 보통은 비워두고 멤버별 키 사용 |
+
+내 PC에서 돌릴 때는 `.env.example`을 `.env`로 복사해서 채우면 `npm start`가 자동으로 읽어요.
+
+## 개발
+
+```bash
+npm test
+```
+
+Postgres까지 확인하려면 테스트용 DB 주소를 넣어요.
+
+```bash
+TEST_DATABASE_URL=postgres://user:pass@localhost:5432/test npm test
+```
+
+| 폴더 | 내용 |
+|---|---|
+| `src/game.js` | 롤 클라이언트 전적 데이터 → 사이트용 데이터 (검사, 라인 추정) |
+| `src/stats.js` | 개인 전적, 점수, 궁합, 챔피언 통계 계산 |
+| `src/app.js` | 페이지, 로그인, 수집기 API |
+| `src/views/` | HTML 화면 |
+| `src/db/` | SQLite / Postgres 저장소 |
+| `collector/collector.mjs` | 수집기 (이 파일 하나로 실행) |
+
+수집기는 원본 전적 데이터를 그대로 보내고 해석은 서버가 해요. 원본도 DB에 같이 저장해서, 나중에 해석 방식을 바꿔도 다시 계산할 수 있어요.
+
+## 알아둘 점
+
+- 수집기는 롤 클라이언트가 자기 PC 안에 여는 API(LCU)를 읽어요. OP.GG 데스크톱 앱 같은 프로그램들도 쓰는 방식이지만 라이엇이 공식 지원하는 기능은 아니라서, 롤 업데이트 때 고쳐야 할 수 있어요.
+- 라이엇 정책상 사용자 설정 게임 전적은 공개하면 안 돼서, 사이트는 디스코드 로그인으로 우리 서버 멤버만 보게 했어요. 검색엔진에도 안 나오게 막아뒀어요.
+
+떡잎.gg isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
