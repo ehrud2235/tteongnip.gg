@@ -360,3 +360,15 @@ textarea.code { display: block; width: 100%; margin: 8px 0 4px; background: var(
 .fmt { font-size: 11px; font-weight: 700; padding: 0 6px; border-radius: 4px; background: #5a3412; color: #ffe0c2; }
 .center { text-align: center; }
 .winner-form { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+/* PIR */
+.pir { font-weight: 800; font-variant-numeric: tabular-nums; }
+.pir.great { color: var(--gold); }
+.pir.good { color: var(--blue); }
+.pir.low { color: var(--muted); }
+.pr-pir { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+.card small.muted { display: block; margin-top: 2px; }
+.pir-help { margin: 4px 0 16px; color: var(--muted); font-size: 13px; }
+.pir-help summary { cursor: pointer; }
+.pir-help ul { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 0; list-style: none; }
+.pir-help li b { color: var(--text); }

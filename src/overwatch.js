@@ -5,7 +5,7 @@
 //   TN,kill,시간,처치한사람,그영웅,죽은사람,그영웅,기술(1 주무기|2 보조|3 기술1|4 기술2|5 궁|6 근접|0 기타)
 //   TN,ult|ab1|ab2,시간,이름,영웅
 //   TN,asleep,시간,이름
-//   TN,stat,이름,팀,처치,결정타,죽음,영웅피해,치유,막은피해,궁사용,환경처치,환경죽음,솔로킬,받은피해,공격도움,방어도움
+//   TN,stat,이름,팀,처치,결정타,죽음,영웅피해,치유,막은피해,궁사용,환경처치,환경죽음,솔로킬,받은피해,공격도움,방어도움,마지막영웅,역할
 //   TN,obj,공격팀(1|2|0),화물진행도(%),목표번호,남은시간,라운드   ← 경기 끝 순간의 목표 상태 (호위·혼합 승패 판정용)
 //   TN,end,시간,1팀점수,2팀점수
 import crypto from 'node:crypto';
@@ -180,6 +180,8 @@ export function normalizeOverwatch(text, opts = {}) {
       taken: num(f[12]),
       assists: num(f[13]),
       defAssists: num(f[14]),
+      finalHero: f[15] ? heroName(f[15]) : null,
+      finalRole: ROLE_KEYS[num(f[16])] || null,
     });
   }
 
@@ -202,11 +204,13 @@ export function normalizeOverwatch(text, opts = {}) {
     winnerSource = 'objective';
   }
 
-  // 5대5 / 6대6: 중간에 나간 사람까지 포함해서 팀별로 영웅을 고른 사람 수
-  const teamCount = { 1: new Set(), 2: new Set() };
-  for (const [name, list] of heroLog) for (const h of list) if (teamCount[h.team]) teamCount[h.team].add(name);
-  for (const st of stats.values()) if (teamCount[st.team]) teamCount[st.team].add(st.name);
-  const teamSize = Math.max(teamCount[1].size, teamCount[2].size);
+  // 5대5 / 6대6: 경기 시작 전에 영웅을 고른 사람(중간에 나간 사람 포함)과 끝까지 남은 사람 중 많은 쪽.
+  // (AI는 영웅을 바꿀 때마다 이름이 바뀌어서, 경기 중에 나온 이름까지 세면 인원이 부풀려진다)
+  const startRoster = { 1: new Set(), 2: new Set() };
+  for (const l of lines.slice(0, startIdx)) if (l.type === 'hero' && startRoster[num(l.f[2])]) startRoster[num(l.f[2])].add(l.f[1]);
+  const finishers = { 1: 0, 2: 0 };
+  for (const st of stats.values()) if (st.team in finishers) finishers[st.team]++;
+  const teamSize = Math.max(startRoster[1].size, startRoster[2].size, finishers[1], finishers[2]);
 
   const teamOf = new Map([...stats.values()].map((s) => [s.name, s.team]));
   const players = [...stats.values()].map((s) => {
@@ -223,6 +227,7 @@ export function normalizeOverwatch(text, opts = {}) {
     }
     let heroes = [...seconds.values()].filter((h) => h.seconds > 0).sort((a, b) => b.seconds - a.seconds);
     if (!heroes.length && list.length) heroes = [{ hero: list.at(-1).hero, role: list.at(-1).role, seconds: 0 }];
+    if (!heroes.length && s.finalHero) heroes = [{ hero: s.finalHero, role: s.finalRole || heroRole(s.finalHero), seconds: duration }];
     if (!heroes.length && mentions.has(s.name)) {
       const counts = [...mentions.get(s.name).entries()].sort((a, b) => b[1] - a[1]);
       const total = counts.reduce((a, [, c]) => a + c, 0);

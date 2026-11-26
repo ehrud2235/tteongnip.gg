@@ -143,3 +143,25 @@ export function heroIcon(owh, name, size = 28, { fallback = 'chip', cls = '' } =
   if (fallback === 'none') return '';
   return fallback === 'text' ? html`<small class="hero-text ${cls}" title="${name}">${name}</small>` : html`<span class="hero-chip">${name}</span>`;
 }
+
+/** PIR (기여도). 그 판 평균이 100 */
+export function pirCell(entry) {
+  if (!entry) return '';
+  const cls = entry.pir >= 130 ? 'great' : entry.pir >= 100 ? 'good' : entry.pir < 70 ? 'low' : '';
+  return html`<span class="pir ${cls}" title="PIR ${entry.pir} · 이 판 ${entry.rank}위 (평균 100)">${entry.pir}</span><small>${entry.rank}위</small>`;
+}
+
+export function mvpBadge(entry) {
+  if (!entry) return '';
+  if (entry.mvp) return html`<span class="badge mvp" title="이긴 팀에서 PIR 1등">MVP</span>`;
+  if (entry.ace) return html`<span class="badge ace" title="진 팀에서 PIR 1등">ACE</span>`;
+  return '';
+}
+
+/** PIR 계산식 설명 */
+export function pirExplainer(weights) {
+  return html`<details class="pir-help"><summary>PIR(기여도)이 뭔가요?</summary>
+  <p>오버워치 리그의 Player Impact Rating처럼 <b>그 판 평균을 100</b>으로 맞춘 기여도예요. 100보다 높으면 평균보다 잘한 거예요. 리그의 실제 계산식은 공개되지 않아서 아래 점수를 더하고 빼서 계산해요. MVP는 이긴 팀 1등, ACE는 진 팀 1등이에요.</p>
+  <ul>${weights.map(([label, w]) => html`<li>${label} <b>${typeof w === 'number' && w > 0 ? `+${w}` : w}</b></li>`)}</ul>
+</details>`;
+}

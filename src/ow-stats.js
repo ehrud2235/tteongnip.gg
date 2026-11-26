@@ -2,6 +2,7 @@
 import { START_RATING, currentStreak, expectedWin, kFactor, teamAverage } from './stats.js';
 import { playerTitles } from './overwatch.js';
 import { winRate } from './util/format.js';
+import { owMatchPir } from './pir.js';
 
 const FUN_KEYS = ['sleeps', 'sleepShots', 'slept', 'rez', 'ultDeaths', 'ultKills', 'meleeKills', 'envKills', 'envDeaths'];
 
@@ -25,6 +26,10 @@ function newPlayer(p) {
     ults: 0,
     solo: 0,
     seconds: 0,
+    pirRankSum: 0,
+    pirSum: 0,
+    mvp: 0,
+    ace: 0,
     fun: Object.fromEntries(FUN_KEYS.map((k) => [k, 0])),
     heroes: new Map(),
     roles: new Map(),
@@ -46,6 +51,7 @@ export function computeOwStats(matches, { minRankedGames = 5 } = {}) {
   const sorted = [...matches].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
   const players = new Map();
   const deltas = new Map();
+  const pir = new Map(); // matchId -> Map(key -> { pir, rank, mvp, ace })
   const heroes = new Map(); // 영웅 -> { hero, role, games, wins, seconds, players: Map }
   const get = (p) => {
     let s = players.get(p.key);
@@ -63,9 +69,16 @@ export function computeOwStats(matches, { minRankedGames = 5 } = {}) {
       d[p.key] = m.winner ? Math.round(kFactor(s.games) * ((p.win ? 1 : 0) - expected)) : 0;
     }
     deltas.set(m.id, d);
+    const pr = owMatchPir(m);
+    pir.set(m.id, pr);
 
     for (const p of m.players) {
       const s = get(p);
+      const mine = pr.get(p.key);
+      s.pirRankSum += mine.rank;
+      s.pirSum += mine.pir;
+      if (mine.mvp) s.mvp++;
+      if (mine.ace) s.ace++;
       s.rating += d[p.key];
       s.peak = Math.max(s.peak, s.rating);
       s.name = p.name;
@@ -77,7 +90,7 @@ export function computeOwStats(matches, { minRankedGames = 5 } = {}) {
       for (const k of FUN_KEYS) s.fun[k] += p.fun?.[k] || 0;
       s.seconds += m.duration;
       s.lastPlayed = m.createdAt;
-      s.history.push({ matchId: m.id, at: m.createdAt, win: p.win, draw: p.draw, delta: d[p.key], rating: s.rating, hero: p.hero, role: p.role });
+      s.history.push({ matchId: m.id, at: m.createdAt, win: p.win, draw: p.draw, delta: d[p.key], rating: s.rating, hero: p.hero, role: p.role, pirRank: mine.rank, pir: mine.pir, mvp: mine.mvp, ace: mine.ace });
 
       // 영웅: 판수와 승패는 가장 오래 한 영웅에, 플레이 시간은 한 영웅 모두에
       for (const h of p.heroes || []) {
@@ -117,6 +130,8 @@ export function computeOwStats(matches, { minRankedGames = 5 } = {}) {
       per10: { elims: s.elims / tenMin, deaths: s.deaths / tenMin, damage: s.damage / tenMin, healing: s.healing / tenMin, blocked: s.blocked / tenMin },
       mainRole: [...s.roles.entries()].sort((a, b) => b[1].games - a[1].games)[0]?.[0] || null,
       streak: currentStreak(s.history),
+      avgPirRank: s.games ? s.pirRankSum / s.games : 0,
+      avgPir: s.games ? Math.round(s.pirSum / s.games) : 0,
       recent: s.history.slice(-10).map((h) => (h.draw ? null : h.win)),
       ranked: s.games >= minRankedGames,
       rank: null,
@@ -136,6 +151,7 @@ export function computeOwStats(matches, { minRankedGames = 5 } = {}) {
     ranked,
     unranked,
     deltas,
+    pir,
     heroes: heroList,
     totalMatches: sorted.length,
     lastMatchAt: sorted.length ? sorted[sorted.length - 1].createdAt : 0,

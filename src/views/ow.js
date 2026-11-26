@@ -3,12 +3,16 @@ import { html } from '../util/html.js';
 import { fmtAvg, fmtDuration, fmtNum, fmtPct } from '../util/format.js';
 import { relationList } from '../stats.js';
 import { FORMAT_NAMES, matchHighlights, owFormat, ROLE_NAMES } from '../overwatch.js';
+import { OW_PIR_WEIGHTS, owMatchPir } from '../pir.js';
 import { layout } from './pages.js';
 import {
   delta,
   emptyState,
   fmtPlayTime,
   heroIcon,
+  mvpBadge,
+  pirCell,
+  pirExplainer,
   owMatchUrl,
   owPlayerName,
   owPlayerUrl,
@@ -78,13 +82,14 @@ export function owRankingPage(ctx) {
     <td class="rec hide-sm">${s.wins}승 ${s.losses}패${s.draws ? ` ${s.draws}무` : ''}</td>
     <td>${winRateCell(s.wins, s.games)}</td>
     <td class="hide-sm">${eadCell(s.elims, s.assists, s.deaths, s.games)}</td>
+    <td class="num hide-sm"><span class="pir ${s.avgPir >= 110 ? 'good' : ''}">${s.avgPir}</span><small>MVP ${s.mvp}</small></td>
     <td class="hide-md num">${fmtNum(s.per10.damage)}${s.per10.healing >= 1 ? html`<small>치유 ${fmtNum(s.per10.healing)}</small>` : ''}</td>
     <td>${roleBadge(s.mainRole)}</td>
     <td class="hide-sm"><div class="most">${topHeroes(s).map((h) => heroIcon(ctx.owh, h.hero, 26))}</div></td>
     <td class="hide-md">${resultDots(s.recent)}</td>
   </tr>`;
   const table = (rows) => html`<div class="table-wrap"><table class="rank-table">
-    <thead><tr><th>#</th><th>플레이어</th><th class="num">점수</th><th class="hide-sm">전적</th><th>승률</th><th class="hide-sm">처치/도움/죽음</th><th class="hide-md num">10분당 피해</th><th>역할</th><th class="hide-sm">모스트</th><th class="hide-md">최근 10판</th></tr></thead>
+    <thead><tr><th>#</th><th>플레이어</th><th class="num">점수</th><th class="hide-sm">전적</th><th>승률</th><th class="hide-sm">처치/도움/죽음</th><th class="num hide-sm">평균 PIR</th><th class="hide-md num">10분당 피해</th><th>역할</th><th class="hide-sm">모스트</th><th class="hide-md">최근 10판</th></tr></thead>
     <tbody>${rows.map(row)}</tbody>
   </table></div>`;
   const top = stats.ranked[0];
@@ -126,6 +131,7 @@ ${pages > 1
 export function owMatchPage(ctx, m) {
   const d = ctx.data.ow[owFormat(m)].stats.deltas.get(m.id) || {};
   const highlights = matchHighlights(m);
+  const pr = owMatchPir(m);
   const teamBox = (t) => {
     const team = m.players.filter((p) => p.team === t);
     const won = m.winner === t;
@@ -136,16 +142,17 @@ export function owMatchPage(ctx, m) {
     <div class="team-sum">처치 ${sum('elims')} · 피해 ${fmtNum(sum('damage'))} · 치유 ${fmtNum(sum('healing'))}</div>
   </header>
   <div class="table-wrap"><table class="mt">
-    <thead><tr><th>플레이어</th><th>영웅</th><th>처치/도움/죽음</th><th class="num">피해</th><th class="num hide-sm">치유</th><th class="num hide-md">막은 피해</th><th class="num hide-md">궁</th><th class="num">점수</th></tr></thead>
+    <thead><tr><th>플레이어</th><th>영웅</th><th>처치/도움/죽음</th><th class="num">피해</th><th class="num hide-sm">치유</th><th class="num hide-md">막은 피해</th><th class="num hide-md">궁</th><th class="num">PIR</th><th class="num">점수</th></tr></thead>
     <tbody>${team.map(
       (p) => html`<tr>
-      <td><div class="who">${roleBadge(p.role)}${owPlayerName(p, { linkedName: ctx.linkedName(p.key) })}</div></td>
-      <td><div class="hero-cell">${heroIcon(ctx.owh, p.hero, 32)}<div><span class="hero-main">${p.hero}</span>${p.heroes.length > 1 ? html`<span class="hero-more" title="${p.heroes.map((h) => `${h.hero} ${fmtPlayTime(h.seconds)}`).join(', ')}">${p.heroes.slice(1).map((h) => heroIcon(ctx.owh, h.hero, 16, { fallback: 'text' }))}</span>` : ''}</div></div></td>
+      <td><div class="who">${roleBadge(p.role)}${owPlayerName(p, { linkedName: ctx.linkedName(p.key) })}${mvpBadge(pr.get(p.key))}</div></td>
+      <td><div class="hero-cell">${heroIcon(ctx.owh, p.hero, 32, { fallback: 'none' })}<div><span class="hero-main">${p.hero}</span>${p.heroes.length > 1 ? html`<span class="hero-more" title="${p.heroes.map((h) => `${h.hero} ${fmtPlayTime(h.seconds)}`).join(', ')}">${p.heroes.slice(1).map((h) => heroIcon(ctx.owh, h.hero, 16, { fallback: 'text' }))}</span>` : ''}</div></div></td>
       <td>${eadCell(p.elims, p.assists, p.deaths)}</td>
       <td class="num">${fmtNum(p.damage)}</td>
       <td class="num hide-sm">${fmtNum(p.healing)}</td>
       <td class="num hide-md">${fmtNum(p.blocked)}</td>
       <td class="num hide-md">${p.ults}</td>
+      <td class="num">${pirCell(pr.get(p.key))}</td>
       <td class="num">${delta(d[p.key])}</td>
     </tr>`,
     )}</tbody>
@@ -175,6 +182,7 @@ ${highlights.length
   : ''}
 ${teamBox(1)}
 ${teamBox(2)}
+${pirExplainer(OW_PIR_WEIGHTS)}
 ${ctx.user && (m.winnerSource !== 'score' || ctx.user.isAdmin)
   ? html`<details class="edit" ${m.winner === 0 ? html`open` : ''}>
   <summary>승패 정하기${m.winner === 0 ? '' : ' (틀렸을 때)'}</summary>
@@ -244,8 +252,8 @@ export function owPlayerPage(ctx, s) {
     if (!m || !p) return '';
     return html`<a class="prow ${h.draw ? '' : h.win ? 'w' : 'l'}" href="${owMatchUrl(m.id)}">
       <div class="pr-res"><b>${h.draw ? '승패 미정' : h.win ? '승리' : '패배'}</b><small>${ctx.dates.ago(m.createdAt)}</small><small>${fmtDuration(m.duration)}</small></div>
-      <div class="pr-champ">${heroIcon(ctx.owh, p.hero, 40)}<div><span class="hero-main">${p.hero}</span><small class="muted">${m.map}</small></div></div>
-      <div class="pr-kda">${eadCell(p.elims, p.assists, p.deaths)}</div>
+      <div class="pr-champ">${heroIcon(ctx.owh, p.hero, 40, { fallback: 'none' })}<div><span class="hero-main">${p.hero}</span><small class="muted">${m.map}</small></div></div>
+      <div class="pr-kda">${eadCell(p.elims, p.assists, p.deaths)}<small class="pr-pir">PIR ${h.pir} · ${h.pirRank}위 ${h.mvp ? html`<span class="badge mvp">MVP</span>` : h.ace ? html`<span class="badge ace">ACE</span>` : ''}</small></div>
       <div class="pr-misc hide-sm"><span>피해 ${fmtNum(p.damage)}</span><span>치유 ${fmtNum(p.healing)}</span></div>
       <div class="pr-items hide-sm muted small">${m.score[0]} : ${m.score[1]}</div>
       <div class="pr-delta">${delta(h.delta)}</div>
@@ -276,6 +284,7 @@ ${formatTabs(ctx, owPlayerUrl(s.key))}
 ${s.history.length >= 2 ? html`<div class="panel"><h3>점수 변화</h3>${ratingChart(s.history)}</div>` : ''}
 <div class="cards">
   <div class="card"><small>평균 처치/도움/죽음</small>${eadCell(s.elims, s.assists, s.deaths, s.games)}</div>
+  <div class="card"><small>평균 PIR <span class="muted">(판 평균 100)</span></small><b>${s.avgPir}</b><small class="muted">MVP ${s.mvp} · ACE ${s.ace} · 평균 ${fmtAvg(s.avgPirRank)}위</small></div>
   <div class="card"><small>10분당 피해</small><b>${fmtNum(s.damage / tenMin)}</b></div>
   <div class="card"><small>10분당 치유</small><b>${fmtNum(s.healing / tenMin)}</b></div>
   <div class="card"><small>10분당 막은 피해</small><b>${fmtNum(s.blocked / tenMin)}</b></div>
@@ -292,7 +301,7 @@ ${fun.length
     <div class="table-wrap"><table class="small-table">
       <thead><tr><th>영웅</th><th class="num">판수</th><th>승률</th><th class="num hide-sm">플레이 시간</th><th>평균 처치/도움/죽음</th><th class="hide-sm">특수 기록</th></tr></thead>
       <tbody>${heroes.slice(0, 12).map(
-        (h) => html`<tr><td><div class="champ-name">${heroIcon(ctx.owh, h.hero, 24)}${roleBadge(h.role)}<span>${h.hero}</span></div></td><td class="num">${h.games}</td><td>${h.games ? winRateCell(h.wins, h.games) : html`<span class="muted small">잠깐 플레이</span>`}</td><td class="num hide-sm">${fmtPlayTime(h.seconds)}</td><td>${h.games ? eadCell(h.elims, h.assists, h.deaths, h.games) : ''}</td><td class="hide-sm small muted">${heroSpecial(h)}</td></tr>`,
+        (h) => html`<tr><td><div class="champ-name">${heroIcon(ctx.owh, h.hero, 24, { fallback: 'none' })}${roleBadge(h.role)}<span>${h.hero}</span></div></td><td class="num">${h.games}</td><td>${h.games ? winRateCell(h.wins, h.games) : html`<span class="muted small">잠깐 플레이</span>`}</td><td class="num hide-sm">${fmtPlayTime(h.seconds)}</td><td>${h.games ? eadCell(h.elims, h.assists, h.deaths, h.games) : ''}</td><td class="hide-sm small muted">${heroSpecial(h)}</td></tr>`,
       )}</tbody>
     </table></div>
   </div>
@@ -329,7 +338,7 @@ ${stats.heroes.length
     const [bestKey, bestGames] = [...h.players.entries()].sort((a, b) => b[1] - a[1])[0] || [];
     const best = bestKey ? stats.players.get(bestKey) : null;
     return html`<tr>
-      <td><div class="champ-name">${heroIcon(ctx.owh, h.hero, 28)}${roleBadge(h.role)}<span>${h.hero}</span></div></td>
+      <td><div class="champ-name">${heroIcon(ctx.owh, h.hero, 28, { fallback: 'none' })}${roleBadge(h.role)}<span>${h.hero}</span></div></td>
       <td class="num">${h.games}</td>
       <td class="num hide-sm">${fmtPct(h.games, total)}</td>
       <td>${h.games ? winRateCell(h.wins, h.games) : html`<span class="muted">-</span>`}</td>

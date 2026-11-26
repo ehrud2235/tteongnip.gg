@@ -5,11 +5,11 @@ import {
   fmtDuration,
   fmtNum,
   fmtPct,
-  kdaRatio,
   modeName,
 } from '../util/format.js';
 import { relationList } from '../stats.js';
 import { POSITIONS } from '../positions.js';
+import { LOL_PIR_WEIGHTS, lolMatchPir } from '../pir.js';
 import {
   bar,
   champIcon,
@@ -18,7 +18,10 @@ import {
   itemIcons,
   kdaCell,
   matchUrl,
+  mvpBadge,
   owPlayerName,
+  pirCell,
+  pirExplainer,
   playerName,
   playerUrl,
   posBadge,
@@ -134,11 +137,12 @@ export function rankingPage(ctx) {
     <td class="rec hide-sm">${s.wins}승 ${s.losses}패</td>
     <td>${winRateCell(s.wins, s.games)}</td>
     <td class="hide-sm">${kdaCell(s.kills, s.deaths, s.assists, s.games)}</td>
+    <td class="num hide-sm"><span class="pir ${s.avgPir >= 110 ? 'good' : ''}">${s.avgPir}</span><small>MVP ${s.mvp}</small></td>
     <td class="hide-sm"><div class="most">${topChampions(s).map(([id]) => champIcon(ctx.dd, id, 26))}</div></td>
     <td class="hide-md">${resultDots(s.recent)}</td>
   </tr>`;
   const table = (rows) => html`<div class="table-wrap"><table class="rank-table">
-    <thead><tr><th>#</th><th>플레이어</th><th class="num">점수</th><th class="hide-sm">전적</th><th>승률</th><th class="hide-sm">KDA</th><th class="hide-sm">모스트</th><th class="hide-md">최근 10판</th></tr></thead>
+    <thead><tr><th>#</th><th>플레이어</th><th class="num">점수</th><th class="hide-sm">전적</th><th>승률</th><th class="hide-sm">KDA</th><th class="num hide-sm">평균 PIR</th><th class="hide-sm">모스트</th><th class="hide-md">최근 10판</th></tr></thead>
     <tbody>${rows.map(row)}</tbody>
   </table></div>`;
 
@@ -183,30 +187,12 @@ ${pages > 1
   });
 }
 
-/** 간단한 활약 점수로 이긴 팀 MVP, 진 팀 에이스를 고른다. */
-function pickMvp(m) {
-  const score = {};
-  for (const teamId of [100, 200]) {
-    const team = m.players.filter((p) => p.teamId === teamId);
-    const kills = Math.max(1, team.reduce((a, p) => a + p.kills, 0));
-    const dmg = Math.max(1, team.reduce((a, p) => a + p.damage, 0));
-    for (const p of team) {
-      const kda = Math.min(10, kdaRatio(p.kills, p.deaths, p.assists));
-      score[p.puuid] = kda + ((p.kills + p.assists) / kills) * 6 + (p.damage / dmg) * 8 + p.vision / 40;
-    }
-  }
-  const best = (teamId) =>
-    m.players.filter((p) => p.teamId === teamId).sort((a, b) => score[b.puuid] - score[a.puuid])[0]?.puuid;
-  const loser = m.winner === 100 ? 200 : 100;
-  return { mvp: best(m.winner), ace: best(loser) };
-}
-
 export function matchPage(ctx, m) {
   const { dd } = ctx;
   const d = ctx.data.stats.deltas.get(m.id) || {};
   const maxDmg = Math.max(1, ...m.players.map((p) => p.damage));
   const minutes = Math.max(1, m.duration / 60);
-  const { mvp, ace } = pickMvp(m);
+  const pr = lolMatchPir(m);
   const teamBox = (teamId) => {
     const team = m.players.filter((p) => p.teamId === teamId);
     const won = m.winner === teamId;
@@ -220,18 +206,19 @@ export function matchPage(ctx, m) {
     ${info.bans?.length ? html`<div class="bans"><small>밴</small>${info.bans.map((id) => champIcon(dd, id, 20))}</div>` : ''}
   </header>
   <div class="table-wrap"><table class="mt">
-    <thead><tr><th>챔피언</th><th>플레이어</th><th>KDA</th><th class="hide-sm">피해량</th><th class="num">CS</th><th class="num hide-sm">골드</th><th class="num hide-md">시야</th><th class="hide-sm">아이템</th><th class="num">점수</th></tr></thead>
+    <thead><tr><th>챔피언</th><th>플레이어</th><th>KDA</th><th class="hide-sm">피해량</th><th class="num">CS</th><th class="num hide-sm">골드</th><th class="num hide-md">시야</th><th class="hide-sm">아이템</th><th class="num">PIR</th><th class="num">점수</th></tr></thead>
     <tbody>${team.map((p) => {
       const kp = kills ? Math.min(100, Math.round(((p.kills + p.assists) / kills) * 100)) : 0;
       return html`<tr>
       <td><div class="champ"><span class="ci-wrap">${champIcon(dd, p.championId, 36)}<span class="lvl">${p.champLevel}</span></span>${spellIcons(dd, p.spells)}${runeIcons(dd, p.keystone, p.subStyle)}</div></td>
-      <td><div class="who">${posBadge(p.position, p.positionManual)}${playerName(p, { linkedName: ctx.linkedName(p.puuid) })}${p.puuid === mvp ? html`<span class="badge mvp">MVP</span>` : ''}${p.puuid === ace ? html`<span class="badge ace">ACE</span>` : ''}</div></td>
+      <td><div class="who">${posBadge(p.position, p.positionManual)}${playerName(p, { linkedName: ctx.linkedName(p.puuid) })}${mvpBadge(pr.get(p.puuid))}</div></td>
       <td>${kdaCell(p.kills, p.deaths, p.assists)}<small class="kp">킬관여 ${kp}%</small></td>
       <td class="hide-sm dmg"><span>${fmtNum(p.damage)}</span>${bar((p.damage / maxDmg) * 100)}</td>
       <td class="num">${p.cs}<small>${(p.cs / minutes).toFixed(1)}/분</small></td>
       <td class="num hide-sm">${fmtNum(p.gold)}</td>
       <td class="num hide-md">${p.vision}</td>
       <td class="hide-sm">${itemIcons(dd, p.items)}</td>
+      <td class="num">${pirCell(pr.get(p.puuid))}</td>
       <td class="num">${delta(d[p.puuid])}</td>
     </tr>`;
     })}</tbody>
@@ -255,6 +242,7 @@ ${m.meta?.hidden ? html`<p class="notice warn">숨긴 내전이에요. 랭킹과
 </div>
 ${teamBox(100)}
 ${teamBox(200)}
+${pirExplainer(LOL_PIR_WEIGHTS)}
 ${m.mode === 'CLASSIC' && ctx.user
   ? html`<details class="edit">
   <summary>라인이 틀렸나요? 직접 고치기</summary>
@@ -307,7 +295,7 @@ export function playerPage(ctx, s) {
     return html`<a class="prow ${h.win ? 'w' : 'l'}" href="${matchUrl(m.id)}">
       <div class="pr-res"><b>${h.win ? '승리' : '패배'}</b><small>${ctx.dates.ago(m.createdAt)}</small><small>${fmtDuration(m.duration)}</small></div>
       <div class="pr-champ">${champIcon(dd, p.championId, 40)}<div>${spellIcons(dd, p.spells)}${posBadge(p.position, p.positionManual)}</div></div>
-      <div class="pr-kda">${kdaCell(p.kills, p.deaths, p.assists)}</div>
+      <div class="pr-kda">${kdaCell(p.kills, p.deaths, p.assists)}<small class="pr-pir">PIR ${h.pir} · ${h.pirRank}위 ${h.mvp ? html`<span class="badge mvp">MVP</span>` : h.ace ? html`<span class="badge ace">ACE</span>` : ''}</small></div>
       <div class="pr-misc hide-sm"><span>CS ${p.cs}</span><span>피해 ${fmtNum(p.damage)}</span></div>
       <div class="pr-items hide-sm">${itemIcons(dd, p.items)}</div>
       <div class="pr-delta">${delta(h.delta)}</div>
@@ -340,6 +328,7 @@ export function playerPage(ctx, s) {
 ${s.history.length >= 2 ? html`<div class="panel"><h3>점수 변화</h3>${ratingChart(s.history)}</div>` : ''}
 <div class="cards">
   <div class="card"><small>평균 KDA</small>${kdaCell(s.kills, s.deaths, s.assists, s.games)}</div>
+  <div class="card"><small>평균 PIR <span class="muted">(판 평균 100)</span></small><b>${s.avgPir}</b><small class="muted">MVP ${s.mvp} · ACE ${s.ace} · 평균 ${fmtAvg(s.avgPirRank)}위</small></div>
   <div class="card"><small>분당 CS</small><b>${fmtAvg(s.cs / minutes)}</b></div>
   <div class="card"><small>분당 피해량</small><b>${fmtNum(s.damage / minutes)}</b></div>
   <div class="card"><small>평균 시야 점수</small><b>${fmtAvg(s.vision / s.games)}</b></div>

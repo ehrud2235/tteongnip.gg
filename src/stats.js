@@ -1,6 +1,7 @@
 // 경기 기록 전체에서 개인 전적, 점수, 챔피언 통계를 계산한다.
 // 내전 기록은 많아야 수천 판이라 매번 처음부터 다시 계산해도 충분히 빠르다.
 import { kdaRatio, winRate } from './util/format.js';
+import { lolMatchPir } from './pir.js';
 
 export const START_RATING = 1000;
 const PROVISIONAL_GAMES = 10;
@@ -26,6 +27,10 @@ function newPlayer(p) {
     vision: 0,
     seconds: 0,
     pentas: 0,
+    pirRankSum: 0,
+    pirSum: 0,
+    mvp: 0,
+    ace: 0,
     history: [], // { matchId, at, win, delta, rating, championId, position }
     champions: new Map(), // championId -> { games, wins, kills, deaths, assists }
     positions: new Map(), // position -> { games, wins }
@@ -79,6 +84,7 @@ export function computeStats(matches, { minRankedGames = 5 } = {}) {
   const sorted = [...matches].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
   const players = new Map();
   const deltas = new Map(); // matchId -> { puuid: delta }
+  const pir = new Map(); // matchId -> Map(puuid -> { pir, rank, mvp, ace })
   const champions = new Map(); // championId -> { games, wins, kills, deaths, assists, bans, players: Map }
   const get = (p) => {
     let s = players.get(p.puuid);
@@ -107,9 +113,16 @@ export function computeStats(matches, { minRankedGames = 5 } = {}) {
       d[p.puuid] = Math.round(kFactor(s.games) * ((p.win ? 1 : 0) - expected));
     }
     deltas.set(m.id, d);
+    const pr = lolMatchPir(m);
+    pir.set(m.id, pr);
 
     for (const p of m.players) {
       const s = get(p);
+      const mine = pr.get(p.puuid);
+      s.pirRankSum += mine.rank;
+      s.pirSum += mine.pir;
+      if (mine.mvp) s.mvp++;
+      if (mine.ace) s.ace++;
       s.rating += d[p.puuid];
       s.peak = Math.max(s.peak, s.rating);
       if (p.name) {
@@ -137,6 +150,10 @@ export function computeStats(matches, { minRankedGames = 5 } = {}) {
         rating: s.rating,
         championId: p.championId,
         position: p.position,
+        pirRank: mine.rank,
+        pir: mine.pir,
+        mvp: mine.mvp,
+        ace: mine.ace,
       });
       bump(s.champions, p.championId, p.win, p);
       if (p.position) bump(s.positions, p.position, p.win);
@@ -164,6 +181,8 @@ export function computeStats(matches, { minRankedGames = 5 } = {}) {
       csPerMin: s.cs / minutes,
       damagePerMin: s.damage / minutes,
       streak,
+      avgPirRank: s.games ? s.pirRankSum / s.games : 0,
+      avgPir: s.games ? Math.round(s.pirSum / s.games) : 0,
       recent: s.history.slice(-10).map((h) => h.win),
       ranked: s.games >= minRankedGames,
       rank: null,
@@ -185,6 +204,7 @@ export function computeStats(matches, { minRankedGames = 5 } = {}) {
     ranked,
     unranked,
     deltas,
+    pir,
     champions: championList,
     totalMatches: sorted.length,
     lastMatchAt: sorted.length ? sorted[sorted.length - 1].createdAt : 0,
