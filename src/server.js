@@ -15,6 +15,9 @@ const app = createApp({ config, db, ddragon });
 const server = http.createServer((req, res) => app.handle(req, res));
 server.listen(config.port, () => {
   console.log(`${config.siteName} 실행 중: ${config.baseUrl} (저장소: ${db.kind})`);
+  if (config.authEnabled) {
+    console.log(`디스코드 OAuth2 Redirects에 이 주소를 그대로 등록하세요: ${config.baseUrl}/auth/callback`);
+  }
 });
 
 async function shutdown() {
