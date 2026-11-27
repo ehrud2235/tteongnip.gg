@@ -58,7 +58,7 @@ test('개발 모드: 업로드, 중복, 페이지, 라인 수정, 숨기기, 디
     const matchHtml = await matchRes.text();
     assert.match(matchHtml, /MVP/);
     assert.match(matchHtml, /아트록스/);
-    assert.match(matchHtml, /직접 고치기/);
+    assert.match(matchHtml, /라인 고치기 \(관리자\)/);
 
     const player = await fetch(`${t.base}/players/${puuidOf('쌈무')}`);
     assert.equal(player.status, 200);
@@ -197,10 +197,20 @@ test('디스코드 로그인: 멤버만 들어오고, 개인 수집기 키를 �
     assert.equal(up.status, 201);
     assert.match(await (await fetch(`${t.base}/matches/KR_77`, { headers: { cookie } })).text(), /올린 사람 서버닉/);
 
-    // 일반 멤버는 숨기기 불가
+    // 일반 멤버는 기록을 못 바꾼다 (숨기기, 라인, 승패, 다시 분석) 그리고 버튼도 안 보인다
     const csrf = csrfToken('777', 'test-secret');
-    const hide = await fetch(`${t.base}/matches/KR_77/hide`, { ...form({ _csrf: csrf }), headers: { ...form({}).headers, cookie } });
-    assert.equal(hide.status, 403);
+    const asMember = (path, body) => fetch(`${t.base}${path}`, { ...form({ _csrf: csrf, ...body }), headers: { ...form({}).headers, cookie } });
+    assert.equal((await asMember('/matches/KR_77/hide')).status, 403);
+    assert.equal((await asMember('/matches/KR_77/positions', { pos_1: 'UTILITY' })).status, 403);
+    assert.equal((await asMember('/matches/KR_77/reparse')).status, 403);
+    const memberView = await (await fetch(`${t.base}/matches/KR_77`, { headers: { cookie } })).text();
+    assert.doesNotMatch(memberView, /라인 고치기/);
+    assert.doesNotMatch(memberView, /다시 분석/);
+    const ow = await (await fetch(`${t.base}/api/collector/overwatch`, { method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: JSON.stringify({ log: makeOwLog({ score: [0, 0] }) }) })).json();
+    assert.equal((await asMember(`/ow/matches/${ow.id}/winner`, { winner: '1' })).status, 403);
+    const owView = await (await fetch(`${t.base}/ow/matches/${ow.id}`, { headers: { cookie } })).text();
+    assert.match(owView, /관리자가 승패를 정하면/);
+    assert.doesNotMatch(owView, /winner-form/);
 
     const out = await fetch(`${t.base}/logout`, { method: 'POST', headers: { cookie }, redirect: 'manual' });
     assert.match(out.headers.getSetCookie()[0], /tn_session=;.*Max-Age=0/);

@@ -276,6 +276,7 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
 
     async matchPositions(req, res, ctx, url, id) {
       const form = await readForm(req, ctx);
+      if (!ctx.user.isAdmin) throw new HttpError(403, '라인은 관리자만 고칠 수 있어요');
       const m = await db.getMatch(id);
       if (!m) return notFound(res, ctx);
       const edits = {};
@@ -325,7 +326,7 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
       const m = await db.getMatch(id);
       if (!m || m.game !== 'ow') return notFound(res, ctx);
       // 점수로 확실히 정해진 판은 관리자만 고칠 수 있다
-      if (m.winnerSource === 'score' && !ctx.user.isAdmin) throw new HttpError(403, '점수로 승패가 정해진 판은 관리자만 고칠 수 있어요');
+      if (!ctx.user.isAdmin) throw new HttpError(403, '승패는 관리자만 정할 수 있어요');
       const winner = Number(form.get('winner'));
       if (![0, 1, 2].includes(winner)) throw new HttpError(400, '이긴 팀을 골라주세요');
       setOwWinner(m, winner);

@@ -243,9 +243,9 @@ ${m.meta?.hidden ? html`<p class="notice warn">숨긴 내전이에요. 랭킹과
 ${teamBox(100)}
 ${teamBox(200)}
 ${pirExplainer(LOL_PIR_WEIGHTS)}
-${m.mode === 'CLASSIC' && ctx.user
+${m.mode === 'CLASSIC' && ctx.user?.isAdmin
   ? html`<details class="edit">
-  <summary>라인이 틀렸나요? 직접 고치기</summary>
+  <summary>라인 고치기 (관리자)</summary>
   <form method="post" action="${matchUrl(m.id)}/positions" class="pos-form">
     <input type="hidden" name="_csrf" value="${ctx.csrf}">
     ${m.players.map(
@@ -438,7 +438,7 @@ ${ctx.user && !ctx.user.dev
   <dt>여러 명이 켜놓으면 두 번 기록되나요?</dt><dd>아니요. 같은 판은 한 번만 기록돼요.</dd>
   <dt>롤 계정 정보를 가져가나요?</dt><dd>아니요. 내 PC 롤 클라이언트의 전적 탭에 보이는 사용자 설정 게임 결과만 읽어요. 비밀번호나 계정 정보는 건드리지 않아요.</dd>
   <dt>솔랭이나 일반 게임도 올라가나요?</dt><dd>아니요. 롤은 10명이 하는 사용자 설정 게임, 오버워치는 워크샵 스크립트를 넣은 커스텀 게임만 올라가요.</dd>
-  <dt>잘못 올라간 판이 있어요.</dt><dd>관리자가 그 내전 화면에서 숨길 수 있어요.</dd>
+  <dt>잘못 올라간 판이 있어요.</dt><dd>관리자에게 말해주세요. 기록 숨기기, 승패·라인 고치기, 다시 분석은 관리자만 할 수 있어요.</dd>
 </dl>`,
   });
 }

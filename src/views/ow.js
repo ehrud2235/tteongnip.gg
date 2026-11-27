@@ -188,7 +188,9 @@ ${m.meta?.hidden ? html`<p class="notice warn">숨긴 내전이에요. 랭킹과
 ${m.fights?.count ? html`<p class="muted small center">한타 ${m.fights.count}번 · 1팀 ${m.fights.won[1]}승 · 2팀 ${m.fights.won[2]}승</p>` : ''}
 ${m.winnerSource === 'objective' ? html`<p class="muted small center">팀 점수가 같아서 경기 끝 순간의 화물 진행도로 승패를 판정했어요.</p>` : ''}
 ${m.winnerSource === 'manual' ? html`<p class="muted small center">승패를 직접 정한 판이에요.</p>` : ''}
-${m.winner === 0 && ctx.user ? html`<p class="notice warn">승패를 알 수 없는 판이에요. 이긴 팀을 골라주면 랭킹에 반영돼요. (아래 <b>승패 정하기</b>)</p>` : ''}
+${m.winner === 0
+  ? html`<p class="notice warn">${ctx.user?.isAdmin ? html`승패를 알 수 없는 판이에요. 이긴 팀을 골라주면 랭킹에 반영돼요. (아래 <b>승패 정하기</b>)` : '승패를 알 수 없는 판이에요. 관리자가 승패를 정하면 랭킹에 반영돼요.'}</p>`
+  : ''}
 ${highlights.length
   ? html`<div class="panel highlights"><h3>이 판의 명장면 · 흑역사</h3><ul>${highlights.map(
       (h) => html`<li class="${h.kind}"><span class="hl-icon" aria-hidden="true">${h.icon}</span>${heroIcon(ctx.owh, h.who.hero, 20, { fallback: 'none' })}${owPlayerName(h.who)}<span>${h.text}</span></li>`,
@@ -197,9 +199,9 @@ ${highlights.length
 ${teamBox(1)}
 ${teamBox(2)}
 ${owPirExplainer(m)}
-${ctx.user && (m.winnerSource !== 'score' || ctx.user.isAdmin)
+${ctx.user?.isAdmin
   ? html`<details class="edit" ${m.winner === 0 ? html`open` : ''}>
-  <summary>승패 정하기${m.winner === 0 ? '' : ' (틀렸을 때)'}</summary>
+  <summary>승패 정하기 (관리자)${m.winner === 0 ? '' : ' · 틀렸을 때'}</summary>
   <form method="post" action="${owMatchUrl(m.id)}/winner" class="winner-form">
     <input type="hidden" name="_csrf" value="${ctx.csrf}">
     <button class="btn" name="winner" value="1" type="submit">1팀 승리</button>
