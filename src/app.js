@@ -17,7 +17,7 @@ import {
 import { createNotifier } from './discord.js';
 import { applyPositionEdits, normalizeGame } from './game.js';
 import { computeStats } from './stats.js';
-import { normalizeOverwatch, owFormat, setOwWinner } from './overwatch.js';
+import { normalizeOverwatch, owFormat, owPlayedAt, setOwWinner } from './overwatch.js';
 import { computeOwStats } from './ow-stats.js';
 import { makeDateFormat } from './util/format.js';
 import * as pages from './views/pages.js';
@@ -567,10 +567,12 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
       if (err instanceof HttpError) throw err;
       return sendJson(res, 400, { error: 'JSON 형식이 아니에요' });
     }
+    // 경기 시각은 로그 파일 이름 + 줄 앞의 경과 시간으로 서버가 직접 계산한다 (예전 수집기는 잘못 계산했다)
+    const playedAt = owPlayedAt(body?.file, body?.log, config.timeZone) || Number(body?.playedAt) || Date.now();
     const result = normalizeOverwatch(body?.log, {
       minPlayers: config.owMinPlayers,
       minDuration: config.owMinDuration,
-      playedAt: Number(body?.playedAt) || Date.now(),
+      playedAt,
     });
     if (!result.ok) return sendJson(res, 200, { status: 'ignored', reason: result.reason });
     const match = result.match;
@@ -617,10 +619,14 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
     if (!raw) return false;
     let next;
     if (m.game === 'ow') {
-      const r = normalizeOverwatch(raw.log, { minPlayers: 2, minDuration: 0, playedAt: m.createdAt });
+      const playedAt = owPlayedAt(raw.file, raw.log, config.timeZone) || m.createdAt;
+      const r = normalizeOverwatch(raw.log, { minPlayers: 2, minDuration: 0, playedAt });
       if (!r.ok) return false;
       next = r.match;
       if (m.winnerSource === 'manual') setOwWinner(next, m.winner);
+      next.id = m.id;
+      await db.updateMatch(next);
+      return true;
     } else {
       const r = normalizeGame(raw, { minPlayers: 2, minDuration: 0, allowedModes: [m.mode], championTags: (id) => ddragon.championTags(id) });
       if (!r.ok) return false;

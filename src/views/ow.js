@@ -67,7 +67,7 @@ function card(ctx, m) {
     <div class="mc-teams">${[1, 2].map(
       (t) => html`<div class="mc-team ${m.winner === t ? 'won' : m.winner === 0 ? 'draw' : 'lost'}">
         <span class="mc-label">${t}팀 · ${label(t)}</span>
-        <ul>${team(t).map((p) => html`<li>${roleBadge(p.role)}<span class="mc-name" title="${p.name}">${p.name}</span>${heroIcon(ctx.owh, p.hero, 20, { fallback: 'text', cls: 'mc-hero' })}</li>`)}</ul>
+        <ul>${team(t).map((p) => html`<li>${roleBadge(p.role, p.hero)}<span class="mc-name" title="${p.name}">${p.name}</span>${heroIcon(ctx.owh, p.hero, 20, { fallback: 'text', cls: 'mc-hero' })}</li>`)}</ul>
       </div>`,
     )}</div>
   </a>`;
@@ -158,7 +158,7 @@ export function owMatchPage(ctx, m) {
     <thead><tr><th class="c-player">플레이어</th><th class="c-hero">영웅</th><th class="c-ead">처치/도움/죽음</th><th class="num c-dmg">피해</th><th class="num hide-sm c-heal">치유</th><th class="num hide-md c-block">막은 피해</th><th class="num hide-md c-ult">궁</th><th class="num c-pir">PIR</th><th class="num c-delta">점수</th></tr></thead>
     <tbody>${team.map(
       (p) => html`<tr>
-      <td><div class="who">${roleBadge(p.role)}${owPlayerName(p, { linkedName: ctx.linkedName(p.key) })}${mvpBadge(pr.get(p.key))}</div></td>
+      <td><div class="who">${roleBadge(p.role, p.hero)}${owPlayerName(p, { linkedName: ctx.linkedName(p.key) })}${mvpBadge(pr.get(p.key))}</div></td>
       <td>${heroesCell(ctx, p)}</td>
       <td>${eadCell(p.elims, p.assists, p.deaths)}</td>
       <td class="num">${fmtNum(p.damage)}</td>
@@ -250,7 +250,7 @@ export function owPlayerPage(ctx, s) {
   const mine = link && ctx.user && link.discordId === ctx.user.uid;
   const tenMin = Math.max(1, s.seconds / 600);
   const heroes = [...s.heroes.values()].sort((a, b) => b.games - a.games || b.seconds - a.seconds);
-  const roles = ['TANK', 'DAMAGE', 'SUPPORT'].filter((r) => s.roles.has(r)).map((r) => [r, s.roles.get(r)]);
+  const roles = ['TANK', 'MAIN_DPS', 'SUB_DPS', 'DAMAGE', 'SUPPORT'].filter((r) => s.roles.has(r)).map((r) => [r, s.roles.get(r)]);
   const mates = relationList(s.mates, stats.players);
   const opps = relationList(s.opponents, stats.players);
   const fun = FUN_LABELS.filter(([k]) => s.fun[k] > 0);
@@ -318,7 +318,7 @@ ${fun.length
     <div class="table-wrap"><table class="small-table">
       <thead><tr><th>영웅</th><th class="num">판수</th><th>승률</th><th class="num hide-sm">플레이 시간</th><th>평균 처치/도움/죽음</th><th class="hide-sm">특수 기록</th></tr></thead>
       <tbody>${heroes.slice(0, 12).map(
-        (h) => html`<tr><td><div class="champ-name">${heroIcon(ctx.owh, h.hero, 24, { fallback: 'none' })}${roleBadge(h.role)}<span>${h.hero}</span></div></td><td class="num">${h.games}</td><td>${h.games ? winRateCell(h.wins, h.games) : html`<span class="muted small">잠깐 플레이</span>`}</td><td class="num hide-sm">${fmtPlayTime(h.seconds)}</td><td>${h.games ? eadCell(h.elims, h.assists, h.deaths, h.games) : ''}</td><td class="hide-sm small muted">${heroSpecial(h)}</td></tr>`,
+        (h) => html`<tr><td><div class="champ-name">${heroIcon(ctx.owh, h.hero, 24, { fallback: 'none' })}${roleBadge(h.role, h.hero)}<span>${h.hero}</span></div></td><td class="num">${h.games}</td><td>${h.games ? winRateCell(h.wins, h.games) : html`<span class="muted small">잠깐 플레이</span>`}</td><td class="num hide-sm">${fmtPlayTime(h.seconds)}</td><td>${h.games ? eadCell(h.elims, h.assists, h.deaths, h.games) : ''}</td><td class="hide-sm small muted">${heroSpecial(h)}</td></tr>`,
       )}</tbody>
     </table></div>
   </div>
@@ -355,7 +355,7 @@ ${stats.heroes.length
     const [bestKey, bestGames] = [...h.players.entries()].sort((a, b) => b[1] - a[1])[0] || [];
     const best = bestKey ? stats.players.get(bestKey) : null;
     return html`<tr>
-      <td><div class="champ-name">${heroIcon(ctx.owh, h.hero, 28, { fallback: 'none' })}${roleBadge(h.role)}<span>${h.hero}</span></div></td>
+      <td><div class="champ-name">${heroIcon(ctx.owh, h.hero, 28, { fallback: 'none' })}${roleBadge(h.role, h.hero)}<span>${h.hero}</span></div></td>
       <td class="num">${h.games}</td>
       <td class="num hide-sm">${fmtPct(h.games, total)}</td>
       <td>${h.games ? winRateCell(h.wins, h.games) : html`<span class="muted">-</span>`}</td>

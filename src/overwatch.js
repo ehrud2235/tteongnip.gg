@@ -12,7 +12,18 @@ import crypto from 'node:crypto';
 import { analyzeMatch } from './ow-pir.js';
 
 export const ROLE_KEYS = { 1: 'TANK', 2: 'DAMAGE', 3: 'SUPPORT' };
-export const ROLE_NAMES = { TANK: '탱커', DAMAGE: '딜러', SUPPORT: '지원' };
+export const ROLE_NAMES = { TANK: '탱커', DAMAGE: '딜러', SUPPORT: '지원', MAIN_DPS: '메인 딜러', SUB_DPS: '서브 딜러' };
+
+// 딜러를 메인(히트스캔) / 서브(투사체·돌진)로 나눈다. 우리 서버 기준에 맞게 고치면 된다.
+const MAIN_DPS = new Set(['솔저: 76', '캐서디', '애쉬', '위도우메이커', '소전', '트레이서', '바스티온']);
+const SUB_DPS = new Set(['겐지', '한조', '파라', '에코', '정크랫', '메이', '토르비욘', '시메트라', '리퍼', '솜브라', '벤처', '프레야']);
+
+/** 포지션: TANK | MAIN_DPS | SUB_DPS | DAMAGE(분류 안 된 새 딜러) | SUPPORT */
+export function owPosition(role, hero) {
+  if (role !== 'DAMAGE') return role || null;
+  const h = heroName(hero);
+  return MAIN_DPS.has(h) ? 'MAIN_DPS' : SUB_DPS.has(h) ? 'SUB_DPS' : 'DAMAGE';
+}
 
 // 게임 언어가 영어여도 한국어 영웅 이름으로 모아서 보여준다. 모르는 영웅은 받은 이름 그대로 쓴다.
 const HEROES = {
@@ -193,7 +204,9 @@ export function normalizeOverwatch(text, opts = {}) {
   const objective = objLine
     ? { offense: num(objLine.f[0]), payload: num(objLine.f[1]), index: num(objLine.f[2]), timeLeft: num(objLine.f[3]), round: num(objLine.f[4]) }
     : null;
-  if (!winner && objective && (objective.offense === 1 || objective.offense === 2)) {
+  const payloadMode = /호위|혼합|escort|hybrid/i.test(start.f[2] || '');
+  // 밀기·플래시포인트 등은 화물 진행도로 판정할 수 없어서 점수가 같으면 "승패 미정" (관리자가 정한다)
+  if (!winner && payloadMode && objective && (objective.offense === 1 || objective.offense === 2)) {
     const attackersFinished = objective.payload >= 99 || objective.index >= 3;
     if (attackersFinished) winner = objective.offense;
     else if (objective.timeLeft <= 1) winner = 3 - objective.offense; // 시간이 다 돼서 수비 승
@@ -493,4 +506,38 @@ export function setOwWinner(match, winner) {
     p.win = winner !== 0 && p.team === winner;
   }
   return match;
+}
+
+function zonedToUtc(y, mo, d, h, mi, se, timeZone) {
+  const guess = Date.UTC(y, mo - 1, d, h, mi, se);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' })
+      .formatToParts(new Date(guess))
+      .map((p) => [p.type, Number(p.value)]),
+  );
+  const asZoned = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+  return guess - (asZoned - guess);
+}
+
+/**
+ * 경기 시작 시각. 워크샵 로그 파일 이름(Log-2026-11-26-21-55-34.txt)은 파일을 만든 시각이고,
+ * 줄 앞의 [00:01:07]은 시계가 아니라 파일을 만든 뒤 지난 시간이다.
+ */
+export function owPlayedAt(fileName, text, timeZone = 'Asia/Seoul') {
+  const m = /(\d{4})-(\d{2})-(\d{2})[-_ T](\d{2})-(\d{2})-(\d{2})/.exec(String(fileName || ''));
+  if (!m) return null;
+  const [, y, mo, d, h, mi, se] = m.map(Number);
+  const fileStart = zonedToUtc(y, mo, d, h, mi, se, timeZone);
+  const lines = String(text || '').split(/\r?\n/);
+  let lastEnd = -1;
+  lines.forEach((l, i) => l.includes('TN,end,') && (lastEnd = i));
+  let startLine = null;
+  for (let i = (lastEnd < 0 ? lines.length : lastEnd) - 1; i >= 0; i--) {
+    if (lines[i].includes('TN,start,')) {
+      startLine = lines[i];
+      break;
+    }
+  }
+  const c = /\[(\d{1,2}):(\d{2}):(\d{2})\]/.exec(startLine || '');
+  return fileStart + (c ? (Number(c[1]) * 3600 + Number(c[2]) * 60 + Number(c[3])) * 1000 : 0);
 }

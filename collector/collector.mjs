@@ -17,7 +17,7 @@ import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-export const VERSION = '0.2.3';
+export const VERSION = '0.2.4';
 const POLL_MS = 30_000;
 const PING_MS = 10 * 60_000;
 const HISTORY_COUNT = 20;
@@ -294,15 +294,16 @@ export function splitOwMatches(text) {
   });
 }
 
-/** 파일 이름(Log-2026-11-26-21-03-10.txt 같은)의 날짜와 줄 앞의 [21:15:00] 시간으로 경기 시각을 추정한다. */
+/**
+ * 경기 시작 시각. 파일 이름(Log-2026-11-26-21-03-10.txt)은 파일을 만든 시각이고,
+ * 줄 앞의 [00:12:00]은 시계가 아니라 파일을 만든 뒤 지난 시간이다.
+ */
 export function estimatePlayedAt(fileName, clock, mtimeMs) {
   const m = /(\d{4})-(\d{2})-(\d{2})[-_ T](\d{2})-(\d{2})-(\d{2})/.exec(fileName);
-  if (!m || !clock) return mtimeMs;
+  if (!m) return mtimeMs;
   const [, y, mo, d, h, mi, se] = m.map(Number);
   const fileStart = new Date(y, mo - 1, d, h, mi, se).getTime();
-  let at = new Date(y, mo - 1, d, clock[0], clock[1], clock[2]).getTime();
-  if (at < fileStart - 60_000) at += 24 * 3600 * 1000; // 자정을 넘긴 경우
-  return at;
+  return fileStart + (clock ? (clock[0] * 3600 + clock[1] * 60 + clock[2]) * 1000 : 0);
 }
 
 let cachedDocuments = null;

@@ -1,6 +1,6 @@
 // 오버워치 경기 기록에서 개인 전적, 점수, 영웅·역할 통계, 누적 기록을 계산한다. 점수는 롤과 따로 쌓인다.
 import { START_RATING, currentStreak, expectedWin, kFactor, teamAverage } from './stats.js';
-import { playerTitles } from './overwatch.js';
+import { owPosition, playerTitles } from './overwatch.js';
 import { winRate } from './util/format.js';
 import { owMatchPir } from './pir.js';
 
@@ -115,7 +115,8 @@ export function computeOwStats(matches, { minRankedGames = 5 } = {}) {
         }
         heroes.set(h.hero, g);
       }
-      if (p.role) bumpRel(s.roles, p.role, p.win);
+      const pos = owPosition(p.role, p.hero); // 탱커 / 메인 딜러 / 서브 딜러 / 지원
+      if (pos) bumpRel(s.roles, pos, p.win);
       for (const q of m.players) {
         if (q.key === p.key) continue;
         bumpRel(q.team === p.team ? s.mates : s.opponents, q.key, p.win);

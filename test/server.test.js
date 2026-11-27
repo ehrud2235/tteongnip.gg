@@ -257,7 +257,7 @@ test('오버워치: 업로드, 페이지, 명장면, 계정 연결, 숨기기, �
   try {
     assert.equal((await fetch(`${t.base}/api/collector/overwatch`, { method: 'POST', body: '{}' })).status, 401);
     const log = makeOwLog({ sleeps: 3 });
-    const created = await send({ log, playedAt: Date.UTC(2026, 10, 26, 12) });
+    const created = await send({ log, playedAt: Date.UTC(2030, 0, 1), file: 'Log-2026-11-26-20-00-00.txt' });
     assert.equal(created.status, 201);
     const body = await created.json();
     assert.equal(body.status, 'created');
@@ -282,6 +282,8 @@ test('오버워치: 업로드, 페이지, 명장면, 계정 연결, 숨기기, �
     assert.match(await (await fetch(`${t.base}/`)).text(), /아직 기록된 내전이 없어요/);
 
     const id = body.id;
+    // 경기 시각은 서버가 파일 이름 + 경과 시간으로 계산 (수집기가 보낸 값보다 우선): 20:00:00 + [20:00:30] 경과 → 다음 날 16:00:30 한국
+    assert.equal((await t.db.getMatch(id)).createdAt, Date.UTC(2026, 10, 27, 7, 0, 30));
     const matchHtml = await (await fetch(`${t.base}/ow/matches/${id}`)).text();
     assert.match(matchHtml, /명장면 · 흑역사/);
     assert.match(matchHtml, /수면총으로 3명 재움/);
@@ -298,6 +300,9 @@ test('오버워치: 업로드, 페이지, 명장면, 계정 연결, 숨기기, �
     assert.match(playerHtml, /기록실/);
     assert.match(playerHtml, /수면총으로 재운 횟수/);
     assert.match(playerHtml, /판당 3\.0명 재움 · 수면총 명중률 100%/);
+    const tracerHtml = await (await fetch(`${t.base}/ow/players/${encodeURIComponent('트레이서')}`)).text();
+    assert.match(tracerHtml, /메인 딜러/);
+    assert.match(tracerHtml, /role-damage wide" title="메인 딜러">메딜/);
     assert.equal((await fetch(`${t.base}/ow/players/${encodeURIComponent('없는사람')}`)).status, 404);
     assert.equal((await fetch(`${t.base}/ow/players/%E0%A4%A`)).status, 404);
     assert.match(await (await fetch(`${t.base}/ow/heroes`)).text(), /라인하르트/);

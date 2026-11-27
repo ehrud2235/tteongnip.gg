@@ -230,3 +230,30 @@ test('영웅 교체 줄이 빠져도 처치·기술 기록으로 바꾼 영웅�
   assert.deepEqual(p.heroes.map((h) => [h.hero, h.seconds]), [['솜브라', 446], ['트레이서', 425]]);
   assert.equal(p.heroes.find((h) => h.hero === '솜브라').role, 'DAMAGE');
 });
+
+test('경기 시각: 파일 이름(만든 시각, 한국 시간) + 줄 앞 경과 시간', async () => {
+  const { owPlayedAt } = await import('../src/overwatch.js');
+  const text = ['[00:00:00] TN,hero,1,Kiriko,2,3,Kiriko', '[00:01:07] TN,start,67,Busan,Control', '[00:09:17] TN,end,557,2,0'].join('\n');
+  // 2026-11-26 21:55:34 (한국) + 1분 7초 = 21:56:41 한국 = 12:56:41 UTC
+  assert.equal(owPlayedAt('Log-2026-11-26-21-55-34.txt', text, 'Asia/Seoul'), Date.UTC(2026, 10, 26, 12, 56, 41));
+  // 같은 파일에 여러 판이면 마지막 판의 시작 줄
+  const two = `${text}\n[00:12:00] TN,start,720,Oasis,Control\n[00:20:00] TN,end,1200,2,0`;
+  assert.equal(owPlayedAt('Log-2026-11-26-21-55-34.txt', two, 'Asia/Seoul'), Date.UTC(2026, 10, 26, 13, 7, 34));
+  assert.equal(owPlayedAt('이상한이름.txt', text), null);
+});
+
+test('밀기처럼 화물이 없는 모드는 점수가 같으면 승패 미정 (화물 진행도로 판정하지 않는다)', () => {
+  const push = normalizeOverwatch(makeOwLog({ mode: '밀기', score: [0, 0], obj: '1,100,2,0,1' })).match;
+  assert.deepEqual([push.winner, push.winnerSource], [0, null]);
+  const escort = normalizeOverwatch(makeOwLog({ mode: 'Escort', score: [0, 0], obj: '1,100,2,0,1' })).match;
+  assert.deepEqual([escort.winner, escort.winnerSource], [1, 'objective']);
+});
+
+test('딜러를 메인(히트스캔)과 서브(투사체·돌진)로 나눈다', async () => {
+  const { owPosition } = await import('../src/overwatch.js');
+  assert.equal(owPosition('DAMAGE', '캐서디'), 'MAIN_DPS');
+  assert.equal(owPosition('DAMAGE', 'Widowmaker'), 'MAIN_DPS');
+  assert.equal(owPosition('DAMAGE', '겐지'), 'SUB_DPS');
+  assert.equal(owPosition('DAMAGE', '새딜러'), 'DAMAGE');
+  assert.equal(owPosition('TANK', '라인하르트'), 'TANK');
+});

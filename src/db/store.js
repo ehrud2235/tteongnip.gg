@@ -78,7 +78,7 @@ export function createStore(driver) {
     },
 
     async updateMatch(match) {
-      await driver.run('UPDATE matches SET data = ? WHERE id = ?', [JSON.stringify(stripMeta(match)), match.id]);
+      await driver.run('UPDATE matches SET data = ?, created_at = ? WHERE id = ?', [JSON.stringify(stripMeta(match)), match.createdAt, match.id]);
     },
 
     async setHidden(id, hidden) {

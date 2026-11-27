@@ -165,12 +165,12 @@ test('오버워치 로그 파일에서 끝난 경기만 골라 한 번씩 올린
   }
 });
 
-test('파일 이름과 줄 시간으로 경기 시각을 추정한다', () => {
-  const at = estimatePlayedAt('Log-2026-11-26-23-50-00.txt', [0, 10, 0], 123);
-  assert.equal(new Date(at).getDate(), 27); // 자정 넘김
-  assert.equal(new Date(at).getHours(), 0);
+test('파일 이름(만든 시각)과 줄 앞 경과 시간으로 경기 시각을 계산한다', () => {
+  // 23:50에 만든 파일에서 경기 시작 줄이 [00:12:30] → 00:02:30 (다음 날)
+  const at = new Date(estimatePlayedAt('Log-2026-11-26-23-50-00.txt', [0, 12, 30], 123));
+  assert.deepEqual([at.getDate(), at.getHours(), at.getMinutes(), at.getSeconds()], [27, 0, 2, 30]);
   assert.equal(estimatePlayedAt('weird.txt', [1, 2, 3], 123), 123);
-  assert.equal(estimatePlayedAt('Log-2026-11-26-23-50-00.txt', null, 456), 456);
+  assert.equal(estimatePlayedAt('Log-2026-11-26-23-50-00.txt', null, 456), new Date(2026, 10, 26, 23, 50, 0).getTime());
 });
 
 test('오버워치 로그 폴더: 사용자 폴더 바로 아래(C:\\Users\\이름\\Overwatch\\Workshop)도 찾는다', async () => {
