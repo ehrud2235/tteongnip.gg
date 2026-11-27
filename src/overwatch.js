@@ -251,6 +251,8 @@ export function normalizeOverwatch(text, opts = {}) {
       aTeam,
       vTeam,
       vName: f[3],
+      atkHero: f[2],
+      vicHero: f[4],
       ability: num(f[5]),
       allies: f[8] != null && f[8] !== '' ? num(f[8]) : null,
       enemies: f[9] != null && f[9] !== '' ? num(f[9]) : null,
@@ -259,8 +261,8 @@ export function normalizeOverwatch(text, opts = {}) {
   const keyOfName = (name) => resolve(name, null)?.key || null;
   const ults = of('ult').map(({ f }) => ({ t: num(f[0]), name: f[1], key: keyOfName(f[1]), hero: heroName(f[2]) }));
   const abs = [
-    ...of('ab1').map(({ f }) => ({ name: f[1], key: keyOfName(f[1]), hero: heroName(f[2]), slot: 1 })),
-    ...of('ab2').map(({ f }) => ({ name: f[1], key: keyOfName(f[1]), hero: heroName(f[2]), slot: 2 })),
+    ...of('ab1').map(({ f }) => ({ t: num(f[0]), name: f[1], key: keyOfName(f[1]), hero: heroName(f[2]), slot: 1 })),
+    ...of('ab2').map(({ f }) => ({ t: num(f[0]), name: f[1], key: keyOfName(f[1]), hero: heroName(f[2]), slot: 2 })),
   ];
   const asleep = of('asleep').map(({ f }) => ({ t: num(f[0]), name: f[1], key: keyOfName(f[1]) }));
   const spawns = of('spawn').map(({ f }) => ({ t: num(f[0]), name: f[1], team: num(f[2]) }));
@@ -271,19 +273,48 @@ export function normalizeOverwatch(text, opts = {}) {
     })
     .filter(Boolean);
 
+  // "그 시각에 이 영웅이었다"는 기록: 처치·궁·기술 줄에도 영웅이 들어 있어서,
+  // 영웅 교체 줄이 빠져도(워크샵이 가끔 놓친다) 언제 무슨 영웅을 했는지 알아낼 수 있다.
+  const seen = new Map(); // 사람 키 -> [{ t, hero }]
+  const see = (key, t, hero) => {
+    if (!key || !hero || t < t0 || t > t1) return;
+    if (!seen.has(key)) seen.set(key, []);
+    seen.get(key).push({ t, hero: heroName(hero) });
+  };
+  for (const k of kills) {
+    see(k.aKey, k.t, k.atkHero);
+    see(k.vKey, k.t, k.vicHero);
+  }
+  for (const u of ults) see(u.key, u.t, u.hero);
+  for (const a of abs) see(a.key, a.t, a.hero);
+
   const players = [...stats.values()].map((st) => {
     const key = keyFor(st.name, st.team);
     // 영웅별 플레이 시간 (같은 이름이 양 팀에 있으면 영웅 기록도 팀이 맞는 것만)
     const list = (heroLog.get(st.name) || []).filter((h) => nameTeams.get(st.name).size === 1 || h.team === st.team);
-    const seconds = new Map();
-    for (let i = 0; i < list.length; i++) {
-      const from = Math.max(t0, list[i].t);
-      const to = Math.min(t1, i + 1 < list.length ? list[i + 1].t : t1);
-      const hk = list[i].hero;
-      const cur = seconds.get(hk) || { hero: hk, role: list[i].role, seconds: 0 };
-      cur.seconds += Math.max(0, to - from);
-      seconds.set(hk, cur);
+    const roleOfHero = new Map(list.map((h) => [h.hero, h.role]));
+    const obs = [
+      ...list.map((h) => ({ t: Math.max(t0, h.t), hero: h.hero, exact: true })),
+      ...(seen.get(key) || []).map((o) => ({ ...o, exact: false })),
+    ].sort((a, b) => a.t - b.t || b.exact - a.exact);
+    // 같은 영웅이 이어지면 한 구간. 교체 시각: 영웅 선택 줄이 있으면 그 시각, 없으면 앞 영웅 마지막 기록과 새 영웅 첫 기록의 중간.
+    const segs = [];
+    for (const o of obs) {
+      const last = segs.at(-1);
+      if (last && last.hero === o.hero) {
+        last.lastSeen = o.t;
+        continue;
+      }
+      const from = !last ? t0 : o.exact ? o.t : (last.lastSeen + o.t) / 2;
+      segs.push({ hero: o.hero, from, lastSeen: o.t });
     }
+    const seconds = new Map();
+    segs.forEach((g, i) => {
+      const to = i + 1 < segs.length ? segs[i + 1].from : t1;
+      const cur = seconds.get(g.hero) || { hero: g.hero, role: roleOfHero.get(g.hero) || (g.hero === st.finalHero && st.finalRole) || heroRole(g.hero), seconds: 0 };
+      cur.seconds += Math.max(0, Math.round(to - g.from));
+      seconds.set(g.hero, cur);
+    });
     let heroes = [...seconds.values()].filter((h) => h.hero && h.seconds > 0).sort((a, b) => b.seconds - a.seconds);
     if (!heroes.length && list.length && list.at(-1).hero) heroes = [{ hero: list.at(-1).hero, role: list.at(-1).role, seconds: 0 }];
     if (!heroes.length && st.finalHero) heroes = [{ hero: st.finalHero, role: st.finalRole || heroRole(st.finalHero), seconds: duration }];

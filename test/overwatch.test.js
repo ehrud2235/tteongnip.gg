@@ -218,3 +218,15 @@ test('실제 로그: AI가 영웅을 바꿔 이름이 바뀌어도 인원은 5�
   assert.equal(by['나'].hero, '캐서디');
   assert.equal(m.winner, 0); // 예전 스크립트(목표 기록 없음) + 0 : 0 → 승패 미정
 });
+
+test('영웅 교체 줄이 빠져도 처치·기술 기록으로 바꾼 영웅과 시간을 찾는다', () => {
+  // 트레이서 → 솜브라 교체 줄(TN,hero,600)을 지우고, 대신 솜브라로 기술을 쓴 기록만 남긴다
+  const lines = makeOwLog().split('\r\n').filter((l) => !l.includes('TN,hero,600,'));
+  const statAt = lines.findIndex((l) => l.includes('TN,stat,'));
+  lines.splice(statAt, 0, '[20:01:00] TN,ab1,300,트레이서,트레이서', '[20:10:00] TN,ab1,610,트레이서,솜브라', '[20:12:00] TN,ab2,700,트레이서,솜브라');
+  const log = lines.join('\r\n');
+  const p = normalizeOverwatch(log).match.players.find((x) => x.name === '트레이서');
+  // 교체 시각은 트레이서 마지막 기록(300)과 솜브라 첫 기록(610)의 중간(455) → 트레이서 30~455, 솜브라 455~901
+  assert.deepEqual(p.heroes.map((h) => [h.hero, h.seconds]), [['솜브라', 446], ['트레이서', 425]]);
+  assert.equal(p.heroes.find((h) => h.hero === '솜브라').role, 'DAMAGE');
+});

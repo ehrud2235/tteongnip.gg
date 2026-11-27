@@ -372,3 +372,13 @@ textarea.code { display: block; width: 100%; margin: 8px 0 4px; background: var(
 .pir-help summary { cursor: pointer; }
 .pir-help ul { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 0; list-style: none; }
 .pir-help li b { color: var(--text); }
+
+/* 한 판에서 한 영웅 전부 */
+.hero-list { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.hero-item { display: inline-flex; align-items: center; gap: 5px; }
+.hero-item span { display: flex; flex-direction: column; line-height: 1.2; }
+.hero-item b { font-size: 12px; font-weight: 600; }
+.hero-item.main b { font-size: 13px; font-weight: 700; }
+.hero-item small { color: var(--muted); font-size: 11px; }
+.hero-item:not(.main) { opacity: 0.85; }
+.mt td .hero-list small, .mt td .hero-cell small { display: inline; }

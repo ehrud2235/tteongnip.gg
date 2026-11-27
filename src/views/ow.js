@@ -39,6 +39,16 @@ function formatTabs(ctx, basePath) {
   })}</nav>`;
 }
 
+/** 한 판에서 한 영웅 전부: 가장 오래 한 영웅이 크게, 나머지도 얼굴과 플레이 시간까지 */
+function heroesCell(ctx, p) {
+  if (p.heroes.length <= 1) {
+    return html`<div class="hero-cell">${heroIcon(ctx.owh, p.hero, 32, { fallback: 'none' })}<span class="hero-main">${p.hero}</span></div>`;
+  }
+  return html`<div class="hero-list">${p.heroes.map(
+    (h, i) => html`<span class="hero-item ${i === 0 ? 'main' : ''}" title="${h.hero} ${fmtPlayTime(h.seconds)}">${heroIcon(ctx.owh, h.hero, i === 0 ? 32 : 24, { fallback: 'none' })}<span><b>${h.hero}</b><small>${fmtPlayTime(h.seconds)}</small></span></span>`,
+  )}</div>`;
+}
+
 /** 처치 / 도움 / 죽음 (여러 판이면 평균) */
 function eadCell(e, a, d, games = 1) {
   const v = (x) => (games > 1 ? fmtAvg(x / games) : String(x));
@@ -149,7 +159,7 @@ export function owMatchPage(ctx, m) {
     <tbody>${team.map(
       (p) => html`<tr>
       <td><div class="who">${roleBadge(p.role)}${owPlayerName(p, { linkedName: ctx.linkedName(p.key) })}${mvpBadge(pr.get(p.key))}</div></td>
-      <td><div class="hero-cell">${heroIcon(ctx.owh, p.hero, 32, { fallback: 'none' })}<div><span class="hero-main">${p.hero}</span>${p.heroes.length > 1 ? html`<span class="hero-more" title="${p.heroes.map((h) => `${h.hero} ${fmtPlayTime(h.seconds)}`).join(', ')}">${p.heroes.slice(1).map((h) => heroIcon(ctx.owh, h.hero, 16, { fallback: 'text' }))}</span>` : ''}</div></div></td>
+      <td>${heroesCell(ctx, p)}</td>
       <td>${eadCell(p.elims, p.assists, p.deaths)}</td>
       <td class="num">${fmtNum(p.damage)}</td>
       <td class="num hide-sm">${fmtNum(p.healing)}</td>
@@ -257,7 +267,7 @@ export function owPlayerPage(ctx, s) {
     if (!m || !p) return '';
     return html`<a class="prow ${h.draw ? '' : h.win ? 'w' : 'l'}" href="${owMatchUrl(m.id)}">
       <div class="pr-res"><b>${h.draw ? '승패 미정' : h.win ? '승리' : '패배'}</b><small>${ctx.dates.ago(m.createdAt)}</small><small>${fmtDuration(m.duration)}</small></div>
-      <div class="pr-champ">${heroIcon(ctx.owh, p.hero, 40, { fallback: 'none' })}<div><span class="hero-main">${p.hero}</span><small class="muted">${m.map}</small></div></div>
+      <div class="pr-champ">${heroIcon(ctx.owh, p.hero, 40, { fallback: 'none' })}<div><span class="hero-main">${p.hero}${p.heroes.length > 1 ? html` <small class="muted">+ ${p.heroes.slice(1).map((h) => h.hero).join(', ')}</small>` : ''}</span><small class="muted">${m.map}</small></div></div>
       <div class="pr-kda">${eadCell(p.elims, p.assists, p.deaths)}<small class="pr-pir">PIR ${h.pir} · ${h.pirRank}위 ${h.mvp ? html`<span class="badge mvp">MVP</span>` : h.ace ? html`<span class="badge ace">ACE</span>` : ''}</small></div>
       <div class="pr-misc hide-sm"><span>피해 ${fmtNum(p.damage)}</span><span>치유 ${fmtNum(p.healing)}</span></div>
       <div class="pr-items hide-sm muted small">${m.score[0]} : ${m.score[1]}</div>
