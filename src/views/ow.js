@@ -154,8 +154,8 @@ export function owMatchPage(ctx, m) {
     <h2>${won ? '승리' : m.winner === 0 ? '승패 미정' : '패배'} <small>${t}팀</small></h2>
     <div class="team-sum">처치 ${sum('elims')} · 피해 ${fmtNum(sum('damage'))} · 치유 ${fmtNum(sum('healing'))}</div>
   </header>
-  <div class="table-wrap"><table class="mt">
-    <thead><tr><th>플레이어</th><th>영웅</th><th>처치/도움/죽음</th><th class="num">피해</th><th class="num hide-sm">치유</th><th class="num hide-md">막은 피해</th><th class="num hide-md">궁</th><th class="num">PIR</th><th class="num">점수</th></tr></thead>
+  <div class="table-wrap"><table class="mt mt-ow">
+    <thead><tr><th class="c-player">플레이어</th><th class="c-hero">영웅</th><th class="c-ead">처치/도움/죽음</th><th class="num c-dmg">피해</th><th class="num hide-sm c-heal">치유</th><th class="num hide-md c-block">막은 피해</th><th class="num hide-md c-ult">궁</th><th class="num c-pir">PIR</th><th class="num c-delta">점수</th></tr></thead>
     <tbody>${team.map(
       (p) => html`<tr>
       <td><div class="who">${roleBadge(p.role)}${owPlayerName(p, { linkedName: ctx.linkedName(p.key) })}${mvpBadge(pr.get(p.key))}</div></td>

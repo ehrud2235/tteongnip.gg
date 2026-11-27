@@ -387,3 +387,40 @@ textarea.code { display: block; width: 100%; margin: 8px 0 4px; background: var(
 
 code { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
 code.uid { user-select: all; color: var(--text); }
+
+/* 내전 상세: 두 팀 표의 칸 너비를 고정해서 위아래가 맞게 */
+.mt { table-layout: fixed; }
+.mt td { overflow: hidden; }
+.mt .who .pn { min-width: 0; }
+.mt .who .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-ow .c-player { width: 19%; }
+.mt-ow .c-hero { width: 22%; }
+.mt-ow .c-ead { width: 13%; }
+.mt-ow .c-dmg { width: 9%; }
+.mt-ow .c-heal { width: 8%; }
+.mt-ow .c-block { width: 9%; }
+.mt-ow .c-ult { width: 5%; }
+.mt-ow .c-pir { width: 8%; }
+.mt-ow .c-delta { width: 7%; }
+.mt-lol .c-champ { width: 12%; }
+.mt-lol .c-player { width: 19%; }
+.mt-lol .c-kda { width: 11%; }
+.mt-lol .c-dmg { width: 12%; }
+.mt-lol .c-cs { width: 7%; }
+.mt-lol .c-gold { width: 8%; }
+.mt-lol .c-vision { width: 5%; }
+.mt-lol .c-items { width: 16%; }
+.mt-lol .c-pir { width: 6%; }
+.mt-lol .c-delta { width: 6%; }
+@media (max-width: 640px) {
+  .mt-ow .c-player { width: 27%; }
+  .mt-ow .c-hero { width: 25%; }
+  .mt-ow .c-ead { width: 22%; }
+  .mt-ow .c-dmg { width: 13%; }
+  .mt-ow .c-pir, .mt-ow .c-delta { width: 11%; }
+  .mt-lol .c-champ { width: 16%; }
+  .mt-lol .c-player { width: 34%; }
+  .mt-lol .c-kda { width: 22%; }
+  .mt-lol .c-cs { width: 13%; }
+  .mt-lol .c-pir, .mt-lol .c-delta { width: 12%; }
+}

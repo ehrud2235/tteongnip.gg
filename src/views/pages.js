@@ -205,8 +205,8 @@ export function matchPage(ctx, m) {
     <div class="team-sum">${kills}킬 · ${fmtNum(gold)}골드${info.towers != null ? ` · 포탑 ${info.towers} · 용 ${info.dragons} · 바론 ${info.barons}` : ''}</div>
     ${info.bans?.length ? html`<div class="bans"><small>밴</small>${info.bans.map((id) => champIcon(dd, id, 20))}</div>` : ''}
   </header>
-  <div class="table-wrap"><table class="mt">
-    <thead><tr><th>챔피언</th><th>플레이어</th><th>KDA</th><th class="hide-sm">피해량</th><th class="num">CS</th><th class="num hide-sm">골드</th><th class="num hide-md">시야</th><th class="hide-sm">아이템</th><th class="num">PIR</th><th class="num">점수</th></tr></thead>
+  <div class="table-wrap"><table class="mt mt-lol">
+    <thead><tr><th class="c-champ">챔피언</th><th class="c-player">플레이어</th><th class="c-kda">KDA</th><th class="hide-sm c-dmg">피해량</th><th class="num c-cs">CS</th><th class="num hide-sm c-gold">골드</th><th class="num hide-md c-vision">시야</th><th class="hide-sm c-items">아이템</th><th class="num c-pir">PIR</th><th class="num c-delta">점수</th></tr></thead>
     <tbody>${team.map((p) => {
       const kp = kills ? Math.min(100, Math.round(((p.kills + p.assists) / kills) * 100)) : 0;
       return html`<tr>
