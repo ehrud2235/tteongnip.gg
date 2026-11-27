@@ -172,3 +172,10 @@ test('파일 이름과 줄 시간으로 경기 시각을 추정한다', () => {
   assert.equal(estimatePlayedAt('weird.txt', [1, 2, 3], 123), 123);
   assert.equal(estimatePlayedAt('Log-2026-11-26-23-50-00.txt', null, 456), 456);
 });
+
+test('오버워치 로그 폴더: 사용자 폴더 바로 아래(C:\\Users\\이름\\Overwatch\\Workshop)도 찾는다', async () => {
+  const { owDirCandidates } = await import('../collector/collector.mjs');
+  const list = await owDirCandidates('linux', '/home/someone');
+  assert.ok(list.includes(path.join('/home/someone', 'Overwatch', 'Workshop')));
+  assert.ok(list.includes(path.join('/home/someone', 'OneDrive', '문서', 'Overwatch', 'Workshop')));
+});

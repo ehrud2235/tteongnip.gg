@@ -17,7 +17,7 @@ import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-export const VERSION = '0.2.2';
+export const VERSION = '0.2.3';
 const POLL_MS = 30_000;
 const PING_MS = 10 * 60_000;
 const HISTORY_COUNT = 20;
@@ -315,15 +315,20 @@ async function documentsDir(platform) {
   return path.join(os.homedir(), 'Documents');
 }
 
-/** 오버워치 워크샵 로그 폴더 후보들 (문서 폴더가 OneDrive로 옮겨진 경우까지) */
+/** 오버워치 워크샵 로그 폴더 후보들 (문서 폴더, OneDrive로 옮겨진 문서 폴더, 사용자 폴더 바로 아래) */
+export async function owDirCandidates(platform = process.platform, home = os.homedir()) {
+  return [
+    path.join(await documentsDir(platform), 'Overwatch', 'Workshop'),
+    path.join(home, 'Documents', 'Overwatch', 'Workshop'),
+    path.join(home, 'OneDrive', 'Documents', 'Overwatch', 'Workshop'),
+    path.join(home, 'OneDrive', '문서', 'Overwatch', 'Workshop'),
+    path.join(home, 'Overwatch', 'Workshop'),
+  ];
+}
+
 export async function findOwDir(opts, platform = process.platform) {
   if (opts.owDir) return opts.owDir;
-  const candidates = [
-    path.join(await documentsDir(platform), 'Overwatch', 'Workshop'),
-    path.join(os.homedir(), 'Documents', 'Overwatch', 'Workshop'),
-    path.join(os.homedir(), 'OneDrive', 'Documents', 'Overwatch', 'Workshop'),
-    path.join(os.homedir(), 'OneDrive', '문서', 'Overwatch', 'Workshop'),
-  ];
+  const candidates = await owDirCandidates(platform);
   return candidates.find((d) => fs.existsSync(d)) || candidates[0];
 }
 
