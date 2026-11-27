@@ -382,3 +382,5 @@ textarea.code { display: block; width: 100%; margin: 8px 0 4px; background: var(
 .hero-item small { color: var(--muted); font-size: 11px; }
 .hero-item:not(.main) { opacity: 0.85; }
 .mt td .hero-list small, .mt td .hero-cell small { display: inline; }
+
+.me-admin { font-size: 11px; font-weight: 700; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 0 7px; margin-left: 6px; }

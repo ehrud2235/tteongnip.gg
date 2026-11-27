@@ -55,7 +55,7 @@ export function layout(ctx, { title, active = '', body, bare = false, game = 'lo
   const me = user
     ? user.dev
       ? html`<span class="me-dev" title="디스코드 로그인 설정 전이라 모두가 관리자예요">개발 모드</span>`
-      : html`<span class="me-name">${user.avatar ? html`<img src="${user.avatar}" alt="" width="24" height="24">` : ''}${user.name}</span>
+      : html`<span class="me-name">${user.avatar ? html`<img src="${user.avatar}" alt="" width="24" height="24">` : ''}${user.name}${user.isAdmin ? html`<span class="me-admin" title="내전 숨기기, 승패 고치기, 다시 분석 버튼이 보여요">관리자</span>` : ''}</span>
           <form method="post" action="/logout"><button class="link-btn" type="submit">로그아웃</button></form>`
     : '';
   return html`<!doctype html>

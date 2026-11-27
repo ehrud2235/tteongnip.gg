@@ -168,6 +168,7 @@ test('디스코드 로그인: 멤버만 들어오고, 개인 수집기 키를 �
     assert.equal(page.status, 200);
     const pageHtml = await page.text();
     assert.match(pageHtml, /서버닉/);
+    assert.doesNotMatch(pageHtml, /class="me-admin"/); // 777은 관리자가 아님
     assert.doesNotMatch(pageHtml, /누구나 볼 수 있어요/);
 
     // 개인 수집기 파일
