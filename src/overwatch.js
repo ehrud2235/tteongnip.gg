@@ -272,7 +272,7 @@ export function normalizeOverwatch(text, opts = {}) {
     };
   });
   const keyOfName = (name) => resolve(name, null)?.key || null;
-  const ults = of('ult').map(({ f }) => ({ t: num(f[0]), name: f[1], key: keyOfName(f[1]), hero: heroName(f[2]) }));
+  const ults = dedupeUlts(of('ult').map(({ f }) => ({ t: num(f[0]), name: f[1], key: keyOfName(f[1]), hero: heroName(f[2]) })));
   const abs = [
     ...of('ab1').map(({ f }) => ({ t: num(f[0]), name: f[1], key: keyOfName(f[1]), hero: heroName(f[2]), slot: 1 })),
     ...of('ab2').map(({ f }) => ({ t: num(f[0]), name: f[1], key: keyOfName(f[1]), hero: heroName(f[2]), slot: 2 })),
@@ -411,6 +411,23 @@ export function normalizeOverwatch(text, opts = {}) {
       players,
     },
   };
+}
+
+/**
+ * 궁 기록 정리: 키리코 여우길처럼 오래 가는 궁은 쓰는 동안 "궁 사용 중" 상태가 깜빡여서 한 번 쓴 궁이 여러 줄로 찍힌다.
+ * 같은 사람의 궁 기록이 12초 안에 이어지면 한 번으로 친다. (궁을 12초 만에 다시 채우는 영웅은 없다)
+ */
+export function dedupeUlts(list) {
+  const out = [];
+  const last = new Map();
+  for (const u of [...list].sort((a, b) => a.t - b.t)) {
+    const who = u.key || u.name;
+    const prev = last.get(who);
+    last.set(who, u.t);
+    if (prev != null && u.t - prev <= 12) continue;
+    out.push(u);
+  }
+  return out;
 }
 
 function roundInputs(i) {

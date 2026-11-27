@@ -106,12 +106,13 @@ export function computeOwStats(matches, { minRankedGames = 5 } = {}) {
         }
         s.heroes.set(h.hero, hs);
 
-        const g = heroes.get(h.hero) || { hero: h.hero, role: h.role, games: 0, wins: 0, seconds: 0, players: new Map() };
+        const g = heroes.get(h.hero) || { hero: h.hero, role: h.role, games: 0, wins: 0, seconds: 0, players: new Map(), matches: new Set() };
         g.seconds += h.seconds;
         if (h.hero === p.hero) {
           g.games++;
           if (p.win) g.wins++;
           g.players.set(p.key, (g.players.get(p.key) || 0) + 1);
+          g.matches.add(m.id);
         }
         heroes.set(h.hero, g);
       }

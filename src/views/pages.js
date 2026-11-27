@@ -382,7 +382,7 @@ ${stats.champions.length
     return html`<tr>
       <td><div class="champ-name">${champIcon(dd, c.championId, 28)}<span>${dd.champion(c.championId).name}</span></div></td>
       <td class="num">${c.games}</td>
-      <td class="num hide-sm">${fmtPct(c.games, total)}</td>
+      <td class="num hide-sm" title="이 챔피언이 나온 판 비율 (양 팀이 같이 골라도 한 판)">${fmtPct(c.matches.size, total)}</td>
       <td>${c.games ? winRateCell(c.wins, c.games) : html`<span class="muted">-</span>`}</td>
       <td class="num">${c.bans}</td>
       <td class="hide-sm">${c.games ? kdaCell(c.kills, c.deaths, c.assists, c.games) : ''}</td>

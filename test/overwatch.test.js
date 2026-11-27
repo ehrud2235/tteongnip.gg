@@ -257,3 +257,24 @@ test('딜러를 메인(히트스캔)과 서브(투사체·돌진)로 나눈다',
   assert.equal(owPosition('DAMAGE', '새딜러'), 'DAMAGE');
   assert.equal(owPosition('TANK', '라인하르트'), 'TANK');
 });
+
+test('궁 한 번이 여러 줄로 찍혀도(상태 깜빡임) 한 번으로 센다, 다른 사람 궁은 따로', async () => {
+  const { dedupeUlts } = await import('../src/overwatch.js');
+  const list = [
+    { t: 100, key: 'ow:a' }, { t: 103, key: 'ow:a' }, { t: 109, key: 'ow:a' }, // 여우길 한 번
+    { t: 101, key: 'ow:b' }, // 상대 팀 키리코 (다른 사람)
+    { t: 200, key: 'ow:a' }, // 다음 궁
+  ];
+  assert.deepEqual(dedupeUlts(list).map((u) => `${u.key}@${u.t}`), ['ow:a@100', 'ow:b@101', 'ow:a@200']);
+});
+
+test('양 팀이 같은 영웅을 골라도 영웅 픽률은 판 기준으로 센다', async () => {
+  const { computeOwStats } = await import('../src/ow-stats.js');
+  // 양 팀 서포터가 둘 다 키리코
+  const t1 = [['A1', 1, '라인하르트'], ['A2', 2, '겐지'], ['A3', 2, '트레이서'], ['A4', 3, '키리코'], ['A5', 3, '루시우']];
+  const t2 = [['B1', 1, '윈스턴'], ['B2', 2, '위도우메이커'], ['B3', 2, '솔저: 76'], ['B4', 3, '키리코'], ['B5', 3, '젠야타']];
+  const m = normalizeOverwatch(makeOwLog({ team1: t1, team2: t2 })).match;
+  const kiriko = computeOwStats([m]).heroes.find((h) => h.hero === '키리코');
+  assert.equal(kiriko.games, 2); // 두 사람이 했으니 판수(사람 기준)는 2
+  assert.equal(kiriko.matches.size, 1); // 픽률은 이 영웅이 나온 판 수 기준 → 100%
+});

@@ -357,7 +357,7 @@ ${stats.heroes.length
     return html`<tr>
       <td><div class="champ-name">${heroIcon(ctx.owh, h.hero, 28, { fallback: 'none' })}${roleBadge(h.role, h.hero)}<span>${h.hero}</span></div></td>
       <td class="num">${h.games}</td>
-      <td class="num hide-sm">${fmtPct(h.games, total)}</td>
+      <td class="num hide-sm" title="이 영웅이 나온 판 비율 (양 팀이 같이 골라도 한 판)">${fmtPct(h.matches.size, total)}</td>
       <td>${h.games ? winRateCell(h.wins, h.games) : html`<span class="muted">-</span>`}</td>
       <td class="num hide-sm">${fmtPlayTime(h.seconds)}</td>
       <td class="hide-sm">${best ? html`${owPlayerName(best)} <small class="muted">${bestGames}판</small>` : ''}</td>

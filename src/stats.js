@@ -94,7 +94,7 @@ export function computeStats(matches, { minRankedGames = 5 } = {}) {
   const champ = (id) => {
     let c = champions.get(id);
     if (!c) {
-      c = { championId: id, games: 0, wins: 0, kills: 0, deaths: 0, assists: 0, bans: 0, players: new Map() };
+      c = { championId: id, games: 0, wins: 0, kills: 0, deaths: 0, assists: 0, bans: 0, players: new Map(), matches: new Set() };
       champions.set(id, c);
     }
     return c;
@@ -168,6 +168,7 @@ export function computeStats(matches, { minRankedGames = 5 } = {}) {
       c.deaths += p.deaths;
       c.assists += p.assists;
       c.players.set(p.puuid, (c.players.get(p.puuid) || 0) + 1);
+      c.matches.add(m.id);
     }
     for (const t of m.teams || []) for (const id of t.bans || []) champ(id).bans++;
   }
