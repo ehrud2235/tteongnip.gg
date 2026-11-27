@@ -298,7 +298,7 @@ test('오버워치: 업로드, 페이지, 명장면, 계정 연결, 숨기기, �
 
     const collector = await (await fetch(`${t.base}/collector`)).text();
     assert.match(collector, /오버워치 내전 기록하기/);
-    assert.match(collector, /<span class="share-code">2MXFB<\/span>/);
+    assert.match(collector, /<span class="share-code">AJJZK<\/span>/);
     assert.match(collector, /TN,start/);
     const workshop = await fetch(`${t.base}/collector/overwatch-workshop.txt`);
     assert.match(await workshop.text(), /rule\("떡잎\.gg \| 경기 시작"\)/);

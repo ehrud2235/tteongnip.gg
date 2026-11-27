@@ -30,7 +30,7 @@
 오버워치는 공식 API도, 롤처럼 PC에서 읽을 수 있는 클라이언트 API도 없어요. 대신 커스텀 게임의 **워크샵 스크립트**가 남기는 로그 파일을 써요.
 
 1. 방장 PC: 오버워치 설정 → 게임플레이 → **워크샵 검사기 로그 파일**(Enable Workshop Inspector Log File) 켜기
-2. 커스텀 게임 설정 → **코드 가져오기 → `2MXFB`** (떡잎.gg 워크샵 스크립트가 들어 있는 공유 코드)
+2. 커스텀 게임 설정 → **코드 가져오기 → `AJJZK`** (떡잎.gg 워크샵 스크립트가 들어 있는 공유 코드)
    - 스크립트를 고쳤을 때만 `overwatch/workshop.txt`를 다시 붙여넣고 새 공유 코드를 만들어요. 코드는 `OW_WORKSHOP_CODE` 환경 변수로 바꿀 수 있어요.
 3. 방장 PC에서 수집기 켜두기 → 경기가 끝나면 `문서\Overwatch\Workshop` 폴더의 로그에서 끝난 경기를 찾아 올려요.
 
@@ -163,7 +163,7 @@ node collector.mjs --server https://사이트주소 --key 수집기키
 | `MIN_GAME_SECONDS` | 이보다 짧은 게임은 무시 (기본 300초) |
 | `OW_MIN_PLAYERS` | 오버워치: 기록할 최소 인원 (기본 8, 끝까지 남은 사람 기준) |
 | `OW_MIN_GAME_SECONDS` | 오버워치: 이보다 짧은 경기는 무시 (기본 180초) |
-| `OW_WORKSHOP_CODE` | 수집기 페이지에 보여줄 워크샵 공유 코드 (기본 `2MXFB`) |
+| `OW_WORKSHOP_CODE` | 수집기 페이지에 보여줄 워크샵 공유 코드 (기본 `AJJZK`) |
 | `UPLOAD_KEY` | 모두 같은 키를 쓸 때만. 보통은 비워두고 멤버별 키 사용 |
 
 내 PC에서 돌릴 때는 `.env.example`을 `.env`로 복사해서 채우면 `npm start`가 자동으로 읽어요.
