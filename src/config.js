@@ -21,6 +21,9 @@ export function loadConfig(env = process.env) {
   if (!authEnabled) {
     warnings.push('디스코드 로그인이 설정되지 않아 누구나 사이트를 볼 수 있어요 (DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_GUILD_ID).');
   }
+  if (authEnabled && !list(env.ADMIN_DISCORD_IDS).length) {
+    warnings.push('ADMIN_DISCORD_IDS가 비어 있어서 관리자가 없어요. 사이트 수집기 페이지에 나오는 내 디스코드 ID를 넣으세요.');
+  }
   let sessionSecret = env.SESSION_SECRET || '';
   if (!sessionSecret) {
     sessionSecret = crypto.randomBytes(32).toString('hex');

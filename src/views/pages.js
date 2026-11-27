@@ -401,6 +401,9 @@ export function collectorPage(ctx, { key, workshop = '' }) {
     active: 'collector',
     body: html`
 <h1>수집기</h1>
+${ctx.user && !ctx.user.dev
+  ? html`<p class="small muted">내 디스코드 ID: <code class="uid">${ctx.user.uid}</code> · ${ctx.user.isAdmin ? html`<b class="accent">관리자</b>` : html`관리자 아님 (관리자가 되려면 이 숫자를 Render의 <code>ADMIN_DISCORD_IDS</code>에 넣으세요. 여러 명이면 쉼표로)`}</p>`
+  : ''}
 <p>롤 클라이언트에서 내전 결과를 읽어서 이 사이트로 보내주는 작은 프로그램이에요. <b>내전에 참가한 사람 중 한 명만 켜두면</b> 10명 전원의 전적이 기록돼요.</p>
 <ol class="steps">
   <li><b>Node.js 설치</b> <span class="muted">(처음 한 번만)</span><br><a href="https://nodejs.org" target="_blank" rel="noopener">nodejs.org</a>에서 LTS 버전을 받아 설치하세요.</li>
