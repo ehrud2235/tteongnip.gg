@@ -49,6 +49,7 @@ export function loadConfig(env = process.env) {
     owMinPlayers: Math.max(2, Number(env.OW_MIN_PLAYERS) || 8),
     owMinDuration: Number(env.OW_MIN_GAME_SECONDS ?? 180) || 0,
     owWorkshopCode: env.OW_WORKSHOP_CODE || 'AJJZK',
+    owTankBonus: Number(env.OW_TANK_BONUS) > 0 ? Number(env.OW_TANK_BONUS) : 1.08,
     warnings,
   };
 }

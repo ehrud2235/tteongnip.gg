@@ -12,6 +12,13 @@ export const ROLE_WEIGHTS = {
   SUPPORT: { kills: 10, survival: 25, initiation: 10, damage: 5, healing: 20, special: 15, ult: 15 },
 };
 
+/**
+ * 탱커 보정: 5대5에서 탱커는 한 판에 두 명뿐이라 "같은 역할끼리 비교"할 상대가 적어서 점수가 덜 튄다
+ * (딜러·지원은 넷이라 잘하면 250까지 오르지만 탱커는 200 근처에서 막힌다). 그만큼 조금 올려준다.
+ * Render 환경 변수 OW_TANK_BONUS로 바꿀 수 있다.
+ */
+export const PIR_OPTIONS = { tankBonus: 1.08 };
+
 export const PART_NAMES = {
   kills: '유효 결정타',
   survival: '유효 생존',
@@ -287,7 +294,8 @@ export function computePir2(players) {
       index[c] = Math.min(INDEX_CAP, Math.round((100 * (raw.get(p.key)[c] + smooth)) / (mean + smooth)));
     }
     const w = ROLE_WEIGHTS[roleOf(p)];
-    const pir = Math.round(parts.reduce((a, c) => a + (w[c] * index[c]) / 100, 0));
+    const bonus = roleOf(p) === 'TANK' ? PIR_OPTIONS.tankBonus : 1;
+    const pir = Math.round(bonus * parts.reduce((a, c) => a + (w[c] * index[c]) / 100, 0));
     result.set(p.key, { pir, parts: index });
   }
   return result;

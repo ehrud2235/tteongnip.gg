@@ -1,7 +1,7 @@
 import { html, raw } from '../util/html.js';
 import { POSITION_NAMES, fmtAvg, fmtPct, fmtRatio, fmtSigned, kdaRatio, winRate } from '../util/format.js';
 import { START_RATING } from '../stats.js';
-import { PART_NAMES, ROLE_WEIGHTS } from '../ow-pir.js';
+import { PART_NAMES, PIR_OPTIONS, ROLE_WEIGHTS } from '../ow-pir.js';
 import { owPosition } from '../overwatch.js';
 
 export const playerUrl = (puuid) => `/players/${encodeURIComponent(puuid)}`;
@@ -193,6 +193,7 @@ export function owPirExplainer({ precise } = {}) {
   ${precise && (!precise.spawns || !precise.snaps) ? html`<p class="small">이 판은 예전 스크립트로 기록돼서 부활 시간과 피해·치유 흐름 일부를 추정했어요.</p>` : ''}
   <div class="table-wrap"><table class="small-table"><thead><tr><th>요소</th>${Object.values(roleNames).map((n) => html`<th class="num">${n}</th>`)}</tr></thead>
   <tbody>${Object.entries(PART_NAMES).map(([k, name]) => html`<tr><td>${name}</td>${Object.keys(roleNames).map((r) => html`<td class="num">${ROLE_WEIGHTS[r][k]}%</td>`)}</tr>`)}</tbody></table></div>
+  <p class="small">탱커 보정: 최종 PIR ×${PIR_OPTIONS.tankBonus} (5대5에서 탱커는 한 판에 두 명뿐이라 같은 역할끼리 비교할 상대가 적어서 점수가 덜 올라가는 것을 보정)</p>
   <p class="small">결정타: 한타 시작 첫 킬 ×1.5 · 열세에서 ×1.3 · 동수 ×1.0 · 1명 우세 ×0.8 · 2명 이상 우세 ×0.5 · 사실상 끝난 한타 ×0.25 · 주변에 아무도 없는 1대1 ×1.2</p>
   <p class="small">데스: 한타 첫 데스 1.5 · 한타도 아닌데 혼자 잡힘 1.3 · 열세에서 추가 데스 1.1 · 일반 1.0 · 이긴 한타 뒤 0.5 · 진 한타 뒤 리스폰 맞추기 0.1</p>
   <p class="small">피해·치유: 동수·열세 한타 ×1.0 · 우세 ×0.75 · 결정된 한타 ×0.25 · 한타 밖 ×0.5 &nbsp;|&nbsp; 궁극기: 쓰기 전후 한타 승리 가능성 변화 50% · 궁으로 직접 처치 30% · 충전 뒤 사용 효율 20%</p>

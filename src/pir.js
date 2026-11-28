@@ -3,7 +3,7 @@
 // 리그의 실제 계산식은 공개되지 않아서, 잘한 것은 더하고 못한 것은 빼는 가중치 합을 그 판 평균으로 나눠 쓴다.
 // 같은 판 안에서는 모두 게임 시간이 같으므로 평균으로 나누면 게임 길이와 상관없이 여러 판을 비교할 수 있다.
 // 오버워치는 한타 상황으로 보정한 PIR 2.0(ow-pir.js)을 쓴다.
-import { computePir2 } from './ow-pir.js';
+import { computePir2, PIR_OPTIONS } from './ow-pir.js';
 
 export const LOL_PIR_WEIGHTS = [
   ['킬', 3],
@@ -45,7 +45,8 @@ export function lolPirRaw(p) {
 }
 
 export function owPirRaw(p) {
-  return (
+  const bonus = p.role === 'TANK' ? PIR_OPTIONS.tankBonus : 1;
+  return bonus * (
     p.elims +
     1.5 * (p.finalBlows || 0) +
     0.5 * (p.assists || 0) -

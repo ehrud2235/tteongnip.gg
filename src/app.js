@@ -19,6 +19,7 @@ import { applyPositionEdits, normalizeGame } from './game.js';
 import { computeStats } from './stats.js';
 import { normalizeOverwatch, owFormat, owPlayedAt, setOwWinner } from './overwatch.js';
 import { computeOwStats } from './ow-stats.js';
+import { PIR_OPTIONS } from './ow-pir.js';
 import { makeDateFormat } from './util/format.js';
 import * as pages from './views/pages.js';
 import * as owPages from './views/ow.js';
@@ -136,6 +137,7 @@ const NO_HERO_IMAGES = { portrait: () => null };
 const OW_TABS = ['all', '5v5', '6v6'];
 
 export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetch = globalThis.fetch, log = console }) {
+  PIR_OPTIONS.tankBonus = config.owTankBonus ?? PIR_OPTIONS.tankBonus;
   const discordAuth = createDiscordAuth({ config, fetch });
   const notifier = createNotifier({ config, fetch, log });
   const dates = makeDateFormat(config.timeZone);

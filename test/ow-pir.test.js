@@ -104,3 +104,24 @@ test('양 팀에 같은 이름(AI)이 있어도 두 사람으로 따로 기록�
   assert.equal(hanzo2.deathW > 0, true);
   assert.ok(hanzo2.kills > 0);
 });
+
+test('탱커 보정: 같은 판에서 탱커 PIR만 ×1.08 (설정으로 바꿀 수 있다)', async () => {
+  const { PIR_OPTIONS } = await import('../src/ow-pir.js');
+  const events = [kill(100, 'A1', '라인하르트', 'B2', '위도우메이커', 1, 1), kill(130, 'B1', '윈스턴', 'A2', '겐지', 1, 2)];
+  const m = normalizeOverwatch(buildLog(events)).match;
+  const saved = PIR_OPTIONS.tankBonus;
+  try {
+    PIR_OPTIONS.tankBonus = 1;
+    const plain = owMatchPir(m);
+    PIR_OPTIONS.tankBonus = 1.08;
+    const boosted = owMatchPir(m);
+    for (const p of m.players) {
+      const a = plain.get(p.key).pir;
+      const b = boosted.get(p.key).pir;
+      if (p.role === 'TANK') assert.ok(Math.abs(b - Math.round(a * 1.08)) <= 1, `${p.name} ${a} → ${b}`);
+      else assert.equal(b, a);
+    }
+  } finally {
+    PIR_OPTIONS.tankBonus = saved;
+  }
+});
