@@ -11,6 +11,8 @@ import {
   fmtPlayTime,
   groupedByDay,
   heroIcon,
+  adjustedCell,
+  adjustedWinRate,
   sortRows,
   sortTh,
   mvpBadge,
@@ -354,8 +356,8 @@ export function owHeroesPage(ctx) {
 ${formatTabs(ctx, '/ow/heroes')}
 ${stats.heroes.length
   ? html`<div class="table-wrap"><table class="rank-table">
-  <thead><tr><th>영웅</th>${sortTh(ctx, 'games', '판수', { def: 'games', cls: 'num' })}${sortTh(ctx, 'pick', '픽률', { def: 'games', cls: 'num' })}${sortTh(ctx, 'winRate', '승률', { def: 'games' })}<th class="num hide-sm">플레이 시간</th><th class="hide-sm">제일 많이 한 사람</th></tr></thead>
-  <tbody>${sortRows(stats.heroes, ctx, { games: (h) => h.games, pick: (h) => h.matches.size, winRate: (h) => (h.games ? h.winRate : -1) }, 'games').map((h) => {
+  <thead><tr><th>영웅</th>${sortTh(ctx, 'games', '판수', { def: 'games', cls: 'num' })}${sortTh(ctx, 'pick', '픽률', { def: 'games', cls: 'num' })}${sortTh(ctx, 'winRate', '승률', { def: 'games' })}${sortTh(ctx, 'overall', '종합', { def: 'games', cls: 'num' })}<th class="num hide-sm">플레이 시간</th><th class="hide-sm">제일 많이 한 사람</th></tr></thead>
+  <tbody>${sortRows(stats.heroes, ctx, { games: (h) => h.games, pick: (h) => h.matches.size, winRate: (h) => (h.games ? h.winRate : -1), overall: (h) => (h.games ? adjustedWinRate(h.wins, h.games) : -1) }, 'games').map((h) => {
     const [bestKey, bestGames] = [...h.players.entries()].sort((a, b) => b[1] - a[1])[0] || [];
     const best = bestKey ? stats.players.get(bestKey) : null;
     return html`<tr>
@@ -363,6 +365,7 @@ ${stats.heroes.length
       <td class="num">${h.games}</td>
       <td class="num" title="이 영웅이 나온 판 비율 (양 팀이 같이 골라도 한 판)">${fmtPct(h.matches.size, total)}</td>
       <td>${h.games ? winRateCell(h.wins, h.games) : html`<span class="muted">-</span>`}</td>
+      <td class="num">${adjustedCell(h.wins, h.games)}</td>
       <td class="num hide-sm">${fmtPlayTime(h.seconds)}</td>
       <td class="hide-sm">${best ? html`${owPlayerName(best)} <small class="muted">${bestGames}판</small>` : ''}</td>
     </tr>`;

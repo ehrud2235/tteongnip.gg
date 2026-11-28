@@ -432,3 +432,21 @@ test('랭킹(점수·승률·PIR)과 영웅 통계(판수·픽률·승률) 정�
     await t.close();
   }
 });
+
+test('영웅 통계: 판수와 승률을 같이 본 "종합" 정렬 (1판 1승이 맨 위로 오지 않게)', async () => {
+  const { adjustedWinRate } = await import('../src/views/components.js');
+  assert.equal(adjustedWinRate(1, 1), 57.1);
+  assert.equal(adjustedWinRate(7, 10), 62.5);
+  assert.equal(adjustedWinRate(20, 30), 63.9);
+  assert.ok(adjustedWinRate(20, 30) > adjustedWinRate(1, 1));
+  assert.equal(adjustedWinRate(0, 0), 0);
+  const t = await startApp({ UPLOAD_KEY: 'k' });
+  try {
+    await fetch(`${t.base}/api/collector/overwatch`, { method: 'POST', headers: { authorization: 'Bearer k', 'content-type': 'application/json' }, body: JSON.stringify({ log: makeOwLog() }) });
+    const html = await (await fetch(`${t.base}/ow/heroes?sort=overall&dir=desc`)).text();
+    assert.match(html, /aria-sort="descending"><a href="\?sort=overall&amp;dir=asc"[^>]*>종합/);
+    assert.match(html, /class="adj[^"]*" title="판수와 승률을 같이 본 점수/);
+  } finally {
+    await t.close();
+  }
+});

@@ -472,3 +472,7 @@ th.num.sortable a { justify-content: flex-end; }
   .mr-team ul { gap: 4px 6px; flex-wrap: wrap; }
   .mr-team li { flex: 0 0 calc((100% - 12px) / 3); gap: 4px; font-size: 12px; }
 }
+
+.adj { font-weight: 700; font-variant-numeric: tabular-nums; cursor: help; }
+.adj.hot { color: var(--red); }
+.adj.cold { color: var(--muted); }

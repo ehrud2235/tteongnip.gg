@@ -215,11 +215,28 @@ export function sortTh(ctx, key, label, { def, cls = '' } = {}) {
   return html`<th class="${cls} sortable ${active ? 'sorted' : ''}" aria-sort="${active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}"><a href="?${q}" title="눌러서 정렬">${label}<span class="arrow">${arrow}</span></a></th>`;
 }
 
-/** fns: { 키: 행 → 숫자 }. 기본은 def 키 내림차순, 같으면 판수 많은 순. */
+/** fns: { 키: 행 → 숫자 }. 기본은 def 키 내림차순. 같으면 판수 많은 순, 그래도 같으면 승률 높은 순. */
 export function sortRows(rows, ctx, fns, def) {
   const key = fns[ctx.sort] ? ctx.sort : def;
   const sign = ctx.dir === 'asc' ? 1 : -1;
-  return [...rows].sort((a, b) => sign * (fns[key](a) - fns[key](b)) || (b.games || 0) - (a.games || 0));
+  return [...rows].sort(
+    (a, b) => sign * (fns[key](a) - fns[key](b)) || (b.games || 0) - (a.games || 0) || (b.winRate || 0) - (a.winRate || 0),
+  );
+}
+
+/**
+ * 판수와 승률을 같이 본 승률: 판수가 적으면 50% 쪽으로 당긴다. (가상의 6판 3승을 더해서 계산)
+ * 1판 1승 → 57%, 10판 7승 → 63%, 30판 20승 → 64%
+ */
+export const PRIOR_GAMES = 6;
+export function adjustedWinRate(wins, games) {
+  return games ? Math.round(((wins + PRIOR_GAMES / 2) / (games + PRIOR_GAMES)) * 1000) / 10 : 0;
+}
+
+export function adjustedCell(wins, games) {
+  if (!games) return html`<span class="muted">-</span>`;
+  const v = adjustedWinRate(wins, games);
+  return html`<span class="adj ${v >= 55 ? 'hot' : v < 45 ? 'cold' : ''}" title="판수와 승률을 같이 본 점수 (판수가 적으면 50% 쪽으로 당겨서 계산)">${v}%</span>`;
 }
 
 /** 내전 목록을 날짜별로 묶는다. rowFn(match) → 한 줄 */
