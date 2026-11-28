@@ -219,6 +219,9 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
       data,
       assetVersion,
       query: url.searchParams.get('q') || '',
+      path: url.pathname,
+      sort: url.searchParams.get('sort') || '',
+      dir: url.searchParams.get('dir') === 'asc' ? 'asc' : 'desc',
       owTab: OW_TABS.includes(url.searchParams.get('f')) ? url.searchParams.get('f') : 'all',
       get ow() {
         return data.ow[this.owTab];

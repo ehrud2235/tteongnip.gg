@@ -24,6 +24,9 @@ import {
   pirExplainer,
   playerName,
   playerUrl,
+  groupedByDay,
+  sortRows,
+  sortTh,
   posBadge,
   ratingChart,
   resultDots,
@@ -104,15 +107,15 @@ function topChampions(s, n = 3) {
   return [...s.champions.entries()].sort((a, b) => b[1].games - a[1].games || b[1].wins - a[1].wins).slice(0, n);
 }
 
-function matchCard(ctx, m) {
+/** 내전 한 판 = 가로로 긴 한 줄 */
+function matchRow(ctx, m) {
   const team = (teamId) => m.players.filter((p) => p.teamId === teamId);
-  return html`<a class="mcard" href="${matchUrl(m.id)}">
-    <div class="mc-meta"><b>${modeName(m.mode)}</b><span>${ctx.dates.ago(m.createdAt)}</span><span>${fmtDuration(m.duration)}</span></div>
-    <div class="mc-teams">${[100, 200].map(
-      (t) => html`<div class="mc-team ${t === 100 ? 'blue' : 'red'} ${m.winner === t ? 'won' : 'lost'}">
-        <span class="mc-label">${t === 100 ? '블루' : '레드'} · ${m.winner === t ? '승리' : '패배'}</span>
-        <ul>${team(t).map((p) => html`<li>${champIcon(ctx.dd, p.championId, 20)}<span title="${p.name}${p.tag ? `#${p.tag}` : ''}">${p.name}</span></li>`)}</ul>
-      </div>`,
+  return html`<a class="mrow" href="${matchUrl(m.id)}">
+    <div class="mr-meta"><b>${modeName(m.mode)}</b><small>${ctx.dates.time(m.createdAt)} · ${fmtDuration(m.duration)}</small><small class="muted">${ctx.dates.ago(m.createdAt)}</small></div>
+    <div class="mr-score"><b class="${m.winner === 100 ? 'win-blue' : 'win-red'}">${m.winner === 100 ? '블루 승' : '레드 승'}</b></div>
+    <div class="mr-teams">${[100, 200].map(
+      (t) => html`<div class="mr-team ${m.winner === t ? 'won' : 'lost'}"><span class="mr-label">${t === 100 ? '블루' : '레드'} ${m.winner === t ? '승' : '패'}</span>
+        <ul>${team(t).map((p) => html`<li title="${p.name}${p.tag ? `#${p.tag}` : ''}">${champIcon(ctx.dd, p.championId, 22)}<span>${p.name}</span></li>`)}</ul></div>`,
     )}</div>
   </a>`;
 }
@@ -130,20 +133,21 @@ export function rankingPage(ctx) {
     });
   }
   const top = stats.ranked[0];
-  const row = (s) => html`<tr>
-    <td class="rank ${s.rank && s.rank <= 3 ? `r${s.rank}` : ''}">${s.rank ?? '-'}</td>
+  const row = (s, i, ranked) => html`<tr>
+    <td class="rank ${ranked && i < 3 ? `r${i + 1}` : ''}">${ranked ? i + 1 : '-'}</td>
     <td><div class="who">${playerName(s, { linkedName: ctx.linkedName(s.puuid) })}${streakBadge(s.streak)}</div></td>
     <td class="num rating"><b>${s.rating}</b></td>
     <td class="rec hide-sm">${s.wins}승 ${s.losses}패</td>
     <td>${winRateCell(s.wins, s.games)}</td>
     <td class="hide-sm">${kdaCell(s.kills, s.deaths, s.assists, s.games)}</td>
-    <td class="num hide-sm"><span class="pir ${s.avgPir >= 110 ? 'good' : ''}">${s.avgPir}</span><small>MVP ${s.mvp}</small></td>
+    <td class="num"><span class="pir ${s.avgPir >= 110 ? 'good' : ''}">${s.avgPir}</span><small>MVP ${s.mvp}</small></td>
     <td class="hide-sm"><div class="most">${topChampions(s).map(([id]) => champIcon(ctx.dd, id, 26))}</div></td>
     <td class="hide-md">${resultDots(s.recent)}</td>
   </tr>`;
-  const table = (rows) => html`<div class="table-wrap"><table class="rank-table">
-    <thead><tr><th>#</th><th>플레이어</th><th class="num">점수</th><th class="hide-sm">전적</th><th>승률</th><th class="hide-sm">KDA</th><th class="num hide-sm">평균 PIR</th><th class="hide-sm">모스트</th><th class="hide-md">최근 10판</th></tr></thead>
-    <tbody>${rows.map(row)}</tbody>
+  const sortFns = { rating: (s) => s.rating, winRate: (s) => s.winRate, pir: (s) => s.avgPir };
+  const table = (rows, ranked) => html`<div class="table-wrap"><table class="rank-table">
+    <thead><tr><th>#</th><th>플레이어</th>${sortTh(ctx, 'rating', '점수', { def: 'rating', cls: 'num' })}<th class="hide-sm">전적</th>${sortTh(ctx, 'winRate', '승률', { def: 'rating' })}<th class="hide-sm">KDA</th>${sortTh(ctx, 'pir', '평균 PIR', { def: 'rating', cls: 'num' })}<th class="hide-sm">모스트</th><th class="hide-md">최근 10판</th></tr></thead>
+    <tbody>${sortRows(rows, ctx, sortFns, 'rating').map((s, i) => row(s, i, ranked))}</tbody>
   </table></div>`;
 
   return layout(ctx, {
@@ -158,14 +162,14 @@ export function rankingPage(ctx) {
   <div class="card"><small>현재 1등</small><b>${top ? top.name : '-'}</b></div>
 </div>
 ${stats.ranked.length
-  ? table(stats.ranked)
+  ? table(stats.ranked, true)
   : html`<p class="muted">아직 ${stats.minRankedGames}판 이상 한 사람이 없어서 순위가 없어요.</p>`}
 ${stats.unranked.length
-  ? html`<h2>배치 중 <small class="muted">${stats.minRankedGames}판부터 순위에 올라가요</small></h2>${table(stats.unranked)}`
+  ? html`<h2>배치 중 <small class="muted">${stats.minRankedGames}판부터 순위에 올라가요</small></h2>${table(stats.unranked, false)}`
   : ''}
 <p class="muted small">점수는 1000점에서 시작해요. 우리 팀 평균 점수가 상대보다 낮은데 이기면 많이 오르고, 높은데 지면 많이 내려가요. 팀이 매번 바뀌어도 개인 점수로 쌓여요.</p>
 <h2>최근 내전 <a class="more" href="/matches">전체 보기</a></h2>
-<div class="mlist">${matches.slice(0, 4).map((m) => matchCard(ctx, m))}</div>`,
+<div class="mrows">${matches.slice(0, 5).map((m) => matchRow(ctx, m))}</div>`,
   });
 }
 
@@ -179,7 +183,7 @@ ${ctx.user?.isAdmin
   ? html`<p class="small"><a href="${showHidden ? '/matches' : '/matches?hidden=1'}">${showHidden ? '← 최근 내전으로' : '숨긴 내전 보기'}</a></p>`
   : ''}
 ${matches.length
-  ? html`<div class="mlist">${matches.map((m) => matchCard(ctx, m))}</div>`
+  ? html`<div class="mrows">${groupedByDay(ctx, matches, (m) => matchRow(ctx, m))}</div>`
   : emptyState(showHidden ? '숨긴 내전이 없어요' : '아직 기록된 내전이 없어요', html`<a href="/collector">수집기</a>를 켜두면 자동으로 기록돼요.`)}
 ${pages > 1
   ? html`<nav class="pager" aria-label="페이지">${page > 1 ? html`<a href="?page=${page - 1}${showHidden ? '&hidden=1' : ''}">← 이전</a>` : html`<span></span>`}<span>${page} / ${pages}</span>${page < pages ? html`<a href="?page=${page + 1}${showHidden ? '&hidden=1' : ''}">다음 →</a>` : html`<span></span>`}</nav>`
@@ -375,14 +379,14 @@ export function championsPage(ctx) {
 <h1>챔피언 통계 <small class="muted">우리 내전 ${stats.totalMatches}판 기준</small></h1>
 ${stats.champions.length
   ? html`<div class="table-wrap"><table class="rank-table">
-  <thead><tr><th>챔피언</th><th class="num">판수</th><th class="num hide-sm">픽률</th><th>승률</th><th class="num">밴</th><th class="hide-sm">KDA</th><th class="hide-sm">제일 많이 한 사람</th></tr></thead>
-  <tbody>${stats.champions.map((c) => {
+  <thead><tr><th>챔피언</th>${sortTh(ctx, 'games', '판수', { def: 'games', cls: 'num' })}${sortTh(ctx, 'pick', '픽률', { def: 'games', cls: 'num' })}${sortTh(ctx, 'winRate', '승률', { def: 'games' })}<th class="num">밴</th><th class="hide-sm">KDA</th><th class="hide-sm">제일 많이 한 사람</th></tr></thead>
+  <tbody>${sortRows(stats.champions, ctx, { games: (c) => c.games, pick: (c) => c.matches.size, winRate: (c) => (c.games ? c.winRate : -1) }, 'games').map((c) => {
     const [bestPuuid, bestGames] = [...c.players.entries()].sort((a, b) => b[1] - a[1])[0] || [];
     const best = bestPuuid ? stats.players.get(bestPuuid) : null;
     return html`<tr>
       <td><div class="champ-name">${champIcon(dd, c.championId, 28)}<span>${dd.champion(c.championId).name}</span></div></td>
       <td class="num">${c.games}</td>
-      <td class="num hide-sm" title="이 챔피언이 나온 판 비율 (양 팀이 같이 골라도 한 판)">${fmtPct(c.matches.size, total)}</td>
+      <td class="num" title="이 챔피언이 나온 판 비율 (양 팀이 같이 골라도 한 판)">${fmtPct(c.matches.size, total)}</td>
       <td>${c.games ? winRateCell(c.wins, c.games) : html`<span class="muted">-</span>`}</td>
       <td class="num">${c.bans}</td>
       <td class="hide-sm">${c.games ? kdaCell(c.kills, c.deaths, c.assists, c.games) : ''}</td>

@@ -81,5 +81,13 @@ export function makeDateFormat(timeZone = 'Asia/Seoul') {
     const p = parts(ms);
     return `${p.year}.${p.month}.${p.day}`;
   };
-  return { date, ago };
+  const day = (ms) => {
+    const p = parts(ms);
+    return `${p.year}.${p.month}.${p.day} (${p.weekday})`;
+  };
+  const time = (ms) => {
+    const p = parts(ms);
+    return `${p.hour}:${p.minute}`;
+  };
+  return { date, ago, day, time };
 }

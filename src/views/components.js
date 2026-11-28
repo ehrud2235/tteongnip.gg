@@ -199,3 +199,35 @@ export function owPirExplainer({ precise } = {}) {
   <p class="small muted">리그의 실제 계산식은 공개되지 않아서, 우리 내전에 맞춰 조정해 가는 기준이에요.</p>
 </details>`;
 }
+
+// ---------- 표 정렬 (내림차순 ↔ 오름차순) ----------
+/** 눌러서 정렬하는 표 머리글. 같은 칸을 다시 누르면 방향이 바뀐다. */
+export function sortTh(ctx, key, label, { def, cls = '' } = {}) {
+  const current = ctx.sort || def;
+  const active = current === key;
+  const dir = active ? ctx.dir : null;
+  const q = new URLSearchParams();
+  if (ctx.owTab && ctx.owTab !== 'all') q.set('f', ctx.owTab);
+  q.set('sort', key);
+  q.set('dir', active && dir === 'desc' ? 'asc' : 'desc');
+  const arrow = active ? (dir === 'asc' ? '▲' : '▼') : '↕';
+  return html`<th class="${cls} sortable ${active ? 'sorted' : ''}" aria-sort="${active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}"><a href="?${q}" title="눌러서 정렬">${label}<span class="arrow">${arrow}</span></a></th>`;
+}
+
+/** fns: { 키: 행 → 숫자 }. 기본은 def 키 내림차순, 같으면 판수 많은 순. */
+export function sortRows(rows, ctx, fns, def) {
+  const key = fns[ctx.sort] ? ctx.sort : def;
+  const sign = ctx.dir === 'asc' ? 1 : -1;
+  return [...rows].sort((a, b) => sign * (fns[key](a) - fns[key](b)) || (b.games || 0) - (a.games || 0));
+}
+
+/** 내전 목록을 날짜별로 묶는다. rowFn(match) → 한 줄 */
+export function groupedByDay(ctx, matches, rowFn) {
+  let lastDay = null;
+  return matches.map((m) => {
+    const day = ctx.dates.day(m.createdAt);
+    const header = day !== lastDay ? html`<h3 class="day">${day}</h3>` : '';
+    lastDay = day;
+    return html`${header}${rowFn(m)}`;
+  });
+}

@@ -426,3 +426,49 @@ code.uid { user-select: all; color: var(--text); }
 }
 
 .role.wide { width: auto; min-width: 20px; padding: 0 4px; }
+
+/* 정렬되는 표 머리글 */
+th.sortable a { display: inline-flex; align-items: center; gap: 3px; color: inherit; }
+th.sortable a:hover { color: var(--text); }
+th.sortable .arrow { font-size: 9px; opacity: 0.5; }
+th.sorted { color: var(--text); }
+th.sorted .arrow { opacity: 1; color: var(--accent); }
+th.num.sortable a { justify-content: flex-end; }
+
+/* 내전 목록: 한 판 = 가로로 긴 한 줄, 날짜별 묶음 */
+.mrows { display: flex; flex-direction: column; gap: 6px; }
+.mrows h3.day { margin: 14px 0 2px; color: var(--muted); font-size: 13px; }
+.mrows h3.day:first-child { margin-top: 0; }
+.mrow { display: grid; grid-template-columns: 170px 84px minmax(0, 1fr); gap: 14px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; }
+.mrow:hover { border-color: #3a4252; color: inherit; background: var(--panel-2); }
+.mr-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mr-meta .mr-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.mr-meta b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mr-meta small { font-size: 12px; color: var(--muted); }
+.mr-score { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.mr-score b { font-size: 17px; letter-spacing: 1px; }
+.mr-score small { font-size: 11px; }
+.win-blue { color: var(--blue); }
+.win-red { color: var(--red); }
+.mr-teams { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mr-team { display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 8px; min-width: 0; }
+.mr-team.won { background: var(--blue-bg); }
+.mr-team.lost { background: var(--red-bg); }
+.mr-team.draw { background: rgba(138, 147, 166, 0.1); }
+.mr-label { flex: none; width: 52px; font-size: 11px; font-weight: 700; color: var(--muted); }
+.mr-team.won .mr-label { color: var(--blue); }
+.mr-team.lost .mr-label { color: var(--red); }
+.mr-team ul { display: flex; gap: 8px; list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; }
+.mr-team li { display: flex; align-items: center; gap: 5px; flex: 1 1 0; min-width: 0; font-size: 12px; }
+.mr-team li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mr-team li img { border-radius: 4px; flex: none; }
+@media (max-width: 640px) {
+  .mrow { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 10px; }
+  .mr-teams { grid-column: 1 / -1; }
+  .mr-label { width: 34px; }
+  .mr-team { gap: 6px; padding: 4px 6px; }
+  .mr-team { align-items: flex-start; }
+  .mr-label { padding-top: 3px; }
+  .mr-team ul { gap: 4px 6px; flex-wrap: wrap; }
+  .mr-team li { flex: 0 0 calc((100% - 12px) / 3); gap: 4px; font-size: 12px; }
+}

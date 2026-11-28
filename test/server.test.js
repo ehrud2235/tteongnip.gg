@@ -401,3 +401,34 @@ test('관리자: 저장된 원본으로 다시 분석 (직접 정한 승패는 �
     await t.close();
   }
 });
+
+test('랭킹(점수·승률·PIR)과 영웅 통계(판수·픽률·승률) 정렬', async () => {
+  const t = await startApp({ UPLOAD_KEY: 'k', MIN_RANKED_GAMES: '1' });
+  try {
+    const send = (log) => fetch(`${t.base}/api/collector/overwatch`, { method: 'POST', headers: { authorization: 'Bearer k', 'content-type': 'application/json' }, body: JSON.stringify({ log }) });
+    await send(makeOwLog({ score: [2, 0] }));
+    await send(makeOwLog({ score: [2, 1], t0: 40 }));
+    await send(makeOwLog({ score: [0, 2], t0: 50 }));
+    const names = (html) => [...html.matchAll(/<tr>\s*<td class="rank[^"]*">[^<]*<\/td>\s*<td><div class="who"><span class="pn"><a href="[^"]+"><span class="nm">([^<]+)</g)].map((m) => m[1]);
+    const desc = names(await (await fetch(`${t.base}/ow?sort=pir&dir=desc`)).text());
+    const asc = names(await (await fetch(`${t.base}/ow?sort=pir&dir=asc`)).text());
+    assert.equal(desc.length, 10);
+    assert.deepEqual([...asc].sort(), [...desc].sort()); // 같은 10명, 순서만 다르다
+    assert.notDeepEqual(desc, asc);
+    const html = await (await fetch(`${t.base}/ow?sort=winRate&dir=asc`)).text();
+    assert.match(html, /aria-sort="ascending"><a href="\?sort=winRate&amp;dir=desc"/);
+    // 1팀이 2승 1패, 2팀이 1승 2패 → 승률 오름차순이면 2팀 사람이 먼저
+    const byWin = names(html);
+    assert.ok(['윈스턴', '위도우', '솔저', '메르시', '젠야타'].includes(byWin[0]));
+    // 탭(f)이 정렬 링크에 유지된다
+    assert.match(await (await fetch(`${t.base}/ow?f=5v5`)).text(), /href="\?f=5v5&amp;sort=pir&amp;dir=desc"/);
+    const heroes = await (await fetch(`${t.base}/ow/heroes?sort=pick&dir=asc`)).text();
+    assert.match(heroes, /aria-sort="ascending"><a href="\?sort=pick&amp;dir=desc"/);
+    // 최근 내전은 날짜별로 묶인 한 줄 목록
+    const list = await (await fetch(`${t.base}/ow/matches`)).text();
+    assert.match(list, /<h3 class="day">\d{4}\.\d{2}\.\d{2} \(.\)<\/h3>/);
+    assert.equal((list.match(/class="mrow"/g) || []).length, 3);
+  } finally {
+    await t.close();
+  }
+});
