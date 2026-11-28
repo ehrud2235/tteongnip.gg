@@ -2,7 +2,6 @@ import { html, raw } from '../util/html.js';
 import { POSITION_NAMES, fmtAvg, fmtPct, fmtRatio, fmtSigned, kdaRatio, winRate } from '../util/format.js';
 import { START_RATING } from '../stats.js';
 import { PART_NAMES, PIR_OPTIONS, ROLE_WEIGHTS } from '../ow-pir.js';
-import { owPosition } from '../overwatch.js';
 
 export const playerUrl = (puuid) => `/players/${encodeURIComponent(puuid)}`;
 export const matchUrl = (id) => `/matches/${encodeURIComponent(id)}`;
@@ -108,24 +107,15 @@ export function emptyState(title, body) {
 }
 
 // ---------- 오버워치 ----------
-const ROLE_SHORT = {
-  TANK: ['탱', '탱커'],
-  DAMAGE: ['딜', '딜러'],
-  MAIN_DPS: ['메딜', '메인 딜러'],
-  SUB_DPS: ['서딜', '서브 딜러'],
-  SUPPORT: ['힐', '지원'],
-};
+const ROLE_SHORT = { TANK: ['탱', '탱커'], DAMAGE: ['딜', '딜러'], SUPPORT: ['힐', '지원'] };
 
 export const owPlayerUrl = (key) => `/ow/players/${encodeURIComponent(String(key).replace(/^ow:/, ''))}`;
 export const owMatchUrl = (id) => `/ow/matches/${encodeURIComponent(id)}`;
 
-/** 역할 표시. 딜러는 영웅을 알면 메인/서브 딜러로 나눈다. role에 포지션(MAIN_DPS 등)을 바로 넘겨도 된다. */
-export function roleBadge(role, hero = null) {
-  const pos = role === 'DAMAGE' && hero ? owPosition(role, hero) : role;
-  const r = ROLE_SHORT[pos];
+export function roleBadge(role) {
+  const r = ROLE_SHORT[role];
   if (!r) return html`<span class="role role-none" title="역할 모름">?</span>`;
-  const cls = pos === 'MAIN_DPS' || pos === 'SUB_DPS' ? 'damage wide' : pos.toLowerCase();
-  return html`<span class="role role-${cls}" title="${r[1]}">${r[0]}</span>`;
+  return html`<span class="role role-${role.toLowerCase()}" title="${r[1]}">${r[0]}</span>`;
 }
 
 export function owPlayerName(p, { link = true, linkedName = null } = {}) {

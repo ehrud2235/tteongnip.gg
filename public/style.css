@@ -425,7 +425,6 @@ code.uid { user-select: all; color: var(--text); }
   .mt-lol .c-pir, .mt-lol .c-delta { width: 12%; }
 }
 
-.role.wide { width: auto; min-width: 20px; padding: 0 4px; }
 
 /* 정렬되는 표 머리글 */
 th.sortable a { display: inline-flex; align-items: center; gap: 3px; color: inherit; }

@@ -249,14 +249,7 @@ test('밀기처럼 화물이 없는 모드는 점수가 같으면 승패 미정 
   assert.deepEqual([escort.winner, escort.winnerSource], [1, 'objective']);
 });
 
-test('딜러를 메인(히트스캔)과 서브(투사체·돌진)로 나눈다', async () => {
-  const { owPosition } = await import('../src/overwatch.js');
-  assert.equal(owPosition('DAMAGE', '캐서디'), 'MAIN_DPS');
-  assert.equal(owPosition('DAMAGE', 'Widowmaker'), 'MAIN_DPS');
-  assert.equal(owPosition('DAMAGE', '겐지'), 'SUB_DPS');
-  assert.equal(owPosition('DAMAGE', '새딜러'), 'DAMAGE');
-  assert.equal(owPosition('TANK', '라인하르트'), 'TANK');
-});
+
 
 test('궁 한 번이 여러 줄로 찍혀도(상태 깜빡임) 한 번으로 센다, 다른 사람 궁은 따로', async () => {
   const { dedupeUlts } = await import('../src/overwatch.js');

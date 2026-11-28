@@ -12,18 +12,7 @@ import crypto from 'node:crypto';
 import { analyzeMatch } from './ow-pir.js';
 
 export const ROLE_KEYS = { 1: 'TANK', 2: 'DAMAGE', 3: 'SUPPORT' };
-export const ROLE_NAMES = { TANK: '탱커', DAMAGE: '딜러', SUPPORT: '지원', MAIN_DPS: '메인 딜러', SUB_DPS: '서브 딜러' };
-
-// 딜러를 메인(히트스캔) / 서브(투사체·돌진)로 나눈다. 우리 서버 기준에 맞게 고치면 된다.
-const MAIN_DPS = new Set(['솔저: 76', '캐서디', '애쉬', '위도우메이커', '소전', '트레이서', '바스티온']);
-const SUB_DPS = new Set(['겐지', '한조', '파라', '에코', '정크랫', '메이', '토르비욘', '시메트라', '리퍼', '솜브라', '벤처', '프레야']);
-
-/** 포지션: TANK | MAIN_DPS | SUB_DPS | DAMAGE(분류 안 된 새 딜러) | SUPPORT */
-export function owPosition(role, hero) {
-  if (role !== 'DAMAGE') return role || null;
-  const h = heroName(hero);
-  return MAIN_DPS.has(h) ? 'MAIN_DPS' : SUB_DPS.has(h) ? 'SUB_DPS' : 'DAMAGE';
-}
+export const ROLE_NAMES = { TANK: '탱커', DAMAGE: '딜러', SUPPORT: '지원' };
 
 // 게임 언어가 영어여도 한국어 영웅 이름으로 모아서 보여준다. 모르는 영웅은 받은 이름 그대로 쓴다.
 const HEROES = {

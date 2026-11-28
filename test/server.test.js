@@ -301,8 +301,9 @@ test('오버워치: 업로드, 페이지, 명장면, 계정 연결, 숨기기, �
     assert.match(playerHtml, /수면총으로 재운 횟수/);
     assert.match(playerHtml, /판당 3\.0명 재움 · 수면총 명중률 100%/);
     const tracerHtml = await (await fetch(`${t.base}/ow/players/${encodeURIComponent('트레이서')}`)).text();
-    assert.match(tracerHtml, /메인 딜러/);
-    assert.match(tracerHtml, /role-damage wide" title="메인 딜러">메딜/);
+    assert.match(tracerHtml, /주 역할 딜러/);
+    assert.match(tracerHtml, /role-damage" title="딜러">딜/);
+    assert.doesNotMatch(tracerHtml, /메인 딜러|메딜|서딜/);
     assert.equal((await fetch(`${t.base}/ow/players/${encodeURIComponent('없는사람')}`)).status, 404);
     assert.equal((await fetch(`${t.base}/ow/players/%E0%A4%A`)).status, 404);
     assert.match(await (await fetch(`${t.base}/ow/heroes`)).text(), /라인하르트/);
