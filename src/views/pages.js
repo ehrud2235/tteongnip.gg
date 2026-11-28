@@ -25,7 +25,6 @@ import {
   playerName,
   playerUrl,
   groupedByDay,
-  sortReset,
   sortRows,
   sortTh,
   posBadge,
@@ -162,7 +161,6 @@ export function rankingPage(ctx) {
   <div class="card"><small>마지막 내전</small><b>${ctx.dates.ago(stats.lastMatchAt)}</b></div>
   <div class="card"><small>현재 1등</small><b>${top ? top.name : '-'}</b></div>
 </div>
-${sortReset(ctx)}
 ${stats.ranked.length
   ? table(stats.ranked, true)
   : html`<p class="muted">아직 ${stats.minRankedGames}판 이상 한 사람이 없어서 순위가 없어요.</p>`}
@@ -379,7 +377,6 @@ export function championsPage(ctx) {
     active: 'champions',
     body: html`
 <h1>챔피언 통계 <small class="muted">우리 내전 ${stats.totalMatches}판 기준</small></h1>
-${sortReset(ctx)}
 ${stats.champions.length
   ? html`<div class="table-wrap"><table class="rank-table">
   <thead><tr><th>챔피언</th>${sortTh(ctx, 'games', '판수', { def: 'games', cls: 'num' })}${sortTh(ctx, 'pick', '픽률', { def: 'games', cls: 'num' })}${sortTh(ctx, 'winRate', '승률', { def: 'games' })}<th class="num">밴</th><th class="hide-sm">KDA</th><th class="hide-sm">제일 많이 한 사람</th></tr></thead>

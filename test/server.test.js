@@ -433,37 +433,19 @@ test('랭킹(점수·승률·PIR)과 영웅 통계(판수·픽률·승률) 정�
   }
 });
 
-test('정렬 두 기준: 판수를 누르고 이어서 승률을 누르면 판수 → 승률 순으로', async () => {
+test('정렬은 한 기준: 같은 머리글을 다시 누르면 방향만 바뀐다', async () => {
   const { parseSorts } = await import('../src/app.js');
-  assert.deepEqual(parseSorts(new URL('http://x/?sort=games.desc,winRate.asc')), [{ key: 'games', dir: 'desc' }, { key: 'winRate', dir: 'asc' }]);
   assert.deepEqual(parseSorts(new URL('http://x/?sort=pir&dir=asc')), [{ key: 'pir', dir: 'asc' }]);
-  assert.equal(parseSorts(new URL('http://x/?sort=a.desc,b.desc,c.desc')).length, 2);
-  const { sortRows } = await import('../src/views/components.js');
-  const rows = [
-    { name: 'A', games: 5, winRate: 40 },
-    { name: 'B', games: 5, winRate: 80 },
-    { name: 'C', games: 9, winRate: 10 },
-    { name: 'D', games: 1, winRate: 100 },
-  ];
-  const fns = { games: (r) => r.games, winRate: (r) => r.winRate };
-  const by = (sorts) => sortRows(rows, { sorts }, fns, 'games').map((r) => r.name).join('');
-  assert.equal(by([{ key: 'games', dir: 'desc' }, { key: 'winRate', dir: 'desc' }]), 'CBAD');
-  assert.equal(by([{ key: 'games', dir: 'desc' }, { key: 'winRate', dir: 'asc' }]), 'CABD');
-  assert.equal(by([{ key: 'winRate', dir: 'desc' }]), 'DBAC');
+  assert.deepEqual(parseSorts(new URL('http://x/?sort=games.desc,winRate.asc')), [{ key: 'games', dir: 'desc' }]);
   const t = await startApp({ UPLOAD_KEY: 'k' });
   try {
     await fetch(`${t.base}/api/collector/overwatch`, { method: 'POST', headers: { authorization: 'Bearer k', 'content-type': 'application/json' }, body: JSON.stringify({ log: makeOwLog() }) });
-    // 판수를 누른 상태에서 승률 머리글은 "판수 → 승률" 링크
-    const one = await (await fetch(`${t.base}/ow/heroes?sort=games.desc`)).text();
-    assert.match(one, /href="\?sort=games\.desc%2CwinRate\.desc"[^>]*>승률/);
-    assert.match(one, /정렬 초기화/);
-    const two = await (await fetch(`${t.base}/ow/heroes?sort=games.desc,winRate.desc`)).text();
-    assert.match(two, /<span class="sort-no">1<\/span>판수/);
-    assert.match(two, /<span class="sort-no">2<\/span>승률/);
-    // 승률을 다시 누르면 승률 방향만 바뀐다
-    assert.match(two, /href="\?sort=games\.desc%2CwinRate\.asc"[^>]*><span class="sort-no">2/);
-    assert.doesNotMatch(await (await fetch(`${t.base}/ow/heroes`)).text(), /정렬 초기화/);
+    const html = await (await fetch(`${t.base}/ow/heroes?sort=games.desc`)).text();
+    assert.match(html, /aria-sort="descending"><a href="\?sort=games\.asc"[^>]*>판수/);
+    assert.match(html, /<a href="\?sort=winRate\.desc"[^>]*>승률/);
+    assert.doesNotMatch(html, /정렬 초기화|sort-no|종합/);
   } finally {
     await t.close();
   }
 });
+

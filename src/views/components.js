@@ -201,51 +201,27 @@ export function owPirExplainer({ precise } = {}) {
 </details>`;
 }
 
-// ---------- 표 정렬 (내림차순 ↔ 오름차순, 두 기준까지) ----------
-const sortQuery = (ctx, list) => {
+// ---------- 표 정렬 (내림차순 ↔ 오름차순) ----------
+/** 눌러서 정렬하는 표 머리글. 같은 칸을 다시 누르면 방향이 바뀐다. */
+export function sortTh(ctx, key, label, { def, cls = '' } = {}) {
+  const current = ctx.sorts?.[0] || { key: def, dir: 'desc' };
+  const active = current.key === key;
+  const dir = active ? current.dir : null;
   const q = new URLSearchParams();
   if (ctx.owTab && ctx.owTab !== 'all') q.set('f', ctx.owTab);
-  if (list.length) q.set('sort', list.map((x) => `${x.key}.${x.dir}`).join(','));
-  return `?${q}`;
-};
-
-/**
- * 눌러서 정렬하는 표 머리글.
- * 처음 누르면 그 기준으로, 다른 머리글을 이어서 누르면 두 번째 기준으로 추가된다 (①②).
- * 이미 고른 머리글을 다시 누르면 방향만 바뀐다. 세 번째를 누르면 두 번째 기준이 바뀐다.
- */
-export function sortTh(ctx, key, label, { def, cls = '' } = {}) {
-  const explicit = ctx.sorts || [];
-  const shown = explicit.length ? explicit : [{ key: def, dir: 'desc' }];
-  const idx = shown.findIndex((x) => x.key === key);
-  const active = idx >= 0;
-  let next;
-  if (explicit.length && idx >= 0) next = explicit.map((x, i) => (i === idx ? { key, dir: x.dir === 'desc' ? 'asc' : 'desc' } : x));
-  else if (!explicit.length) next = [{ key, dir: 'desc' }]; // 처음 누르면 항상 내림차순부터
-  else next = [explicit[0], { key, dir: 'desc' }];
-  const dir = active ? shown[idx].dir : null;
+  q.set('sort', `${key}.${active && dir === 'desc' ? 'asc' : 'desc'}`);
   const arrow = active ? (dir === 'asc' ? '▲' : '▼') : '↕';
-  const order = active && explicit.length > 1 ? html`<span class="sort-no">${idx + 1}</span>` : '';
-  return html`<th class="${cls} sortable ${active ? 'sorted' : ''}" aria-sort="${active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}"><a href="${sortQuery(ctx, next)}" title="누르면 정렬, 다른 칸을 이어서 누르면 두 번째 기준으로 추가">${order}${label}<span class="arrow">${arrow}</span></a></th>`;
+  return html`<th class="${cls} sortable ${active ? 'sorted' : ''}" aria-sort="${active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}"><a href="?${q}" title="눌러서 정렬">${label}<span class="arrow">${arrow}</span></a></th>`;
 }
 
-/** 지금 정렬 기준을 지우는 버튼 (기준을 고른 상태에서만 보인다) */
-export function sortReset(ctx) {
-  if (!ctx.sorts?.length) return '';
-  return html`<p class="sort-reset small"><a href="${sortQuery(ctx, [])}">정렬 초기화</a></p>`;
-}
-
-/** fns: { 키: 행 → 숫자 }. 고른 기준 순서대로, 없으면 def 키 내림차순. 그래도 같으면 판수 → 승률 순. */
+/** fns: { 키: 행 → 숫자 }. 기본은 def 키 내림차순. 같으면 판수 많은 순, 그래도 같으면 승률 높은 순. */
 export function sortRows(rows, ctx, fns, def) {
-  const list = (ctx.sorts || []).filter((x) => fns[x.key]);
-  const keys = list.length ? list : [{ key: def, dir: 'desc' }];
-  return [...rows].sort((a, b) => {
-    for (const { key, dir } of keys) {
-      const d = (dir === 'asc' ? 1 : -1) * (fns[key](a) - fns[key](b));
-      if (d) return d;
-    }
-    return (b.games || 0) - (a.games || 0) || (b.winRate || 0) - (a.winRate || 0);
-  });
+  const chosen = ctx.sorts?.[0];
+  const { key, dir } = chosen && fns[chosen.key] ? chosen : { key: def, dir: 'desc' };
+  const sign = dir === 'asc' ? 1 : -1;
+  return [...rows].sort(
+    (a, b) => sign * (fns[key](a) - fns[key](b)) || (b.games || 0) - (a.games || 0) || (b.winRate || 0) - (a.winRate || 0),
+  );
 }
 
 /** 내전 목록을 날짜별로 묶는다. rowFn(match) → 한 줄 */

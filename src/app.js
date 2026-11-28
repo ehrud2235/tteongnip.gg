@@ -135,7 +135,7 @@ export function collectorBat({ server, key }) {
 
 const NO_HERO_IMAGES = { portrait: () => null };
 
-/** 표 정렬 기준. ?sort=games.desc,winRate.desc 처럼 최대 두 개 (예전 형식 ?sort=pir&dir=asc 도 받는다) */
+/** 표 정렬 기준. ?sort=games.desc (예전 형식 ?sort=pir&dir=asc 도 받는다) */
 export function parseSorts(url) {
   const fallbackDir = url.searchParams.get('dir') === 'asc' ? 'asc' : 'desc';
   return String(url.searchParams.get('sort') || '')
@@ -145,7 +145,7 @@ export function parseSorts(url) {
       return { key, dir: d === 'asc' || d === 'desc' ? d : fallbackDir };
     })
     .filter((x) => /^\w+$/.test(x.key || ''))
-    .slice(0, 2);
+    .slice(0, 1);
 }
 const OW_TABS = ['all', '5v5', '6v6'];
 

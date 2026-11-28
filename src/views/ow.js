@@ -11,7 +11,6 @@ import {
   fmtPlayTime,
   groupedByDay,
   heroIcon,
-  sortReset,
   sortRows,
   sortTh,
   mvpBadge,
@@ -120,7 +119,6 @@ ${formatTabs(ctx, '/ow')}
   <div class="card"><small>마지막 내전</small><b>${ctx.dates.ago(stats.lastMatchAt)}</b></div>
   <div class="card"><small>현재 1등</small><b>${top ? top.name : '-'}</b></div>
 </div>
-${sortReset(ctx)}
 ${stats.ranked.length ? table(stats.ranked, true) : html`<p class="muted">아직 ${stats.minRankedGames}판 이상 한 사람이 없어서 순위가 없어요.</p>`}
 ${stats.unranked.length ? html`<h2>배치 중 <small class="muted">${stats.minRankedGames}판부터 순위에 올라가요</small></h2>${table(stats.unranked, false)}` : ''}
 <p class="muted small">점수는 롤과 따로 1000점에서 시작해요. 전체 · 5대5 · 6대6 탭은 각각 그 판들로만 따로 계산해요. 처치/도움/죽음은 한 판 평균, 피해·치유는 10분당 평균이에요.</p>
@@ -354,7 +352,6 @@ export function owHeroesPage(ctx) {
     body: html`
 <h1>영웅 통계 <small class="muted">우리 내전 ${stats.totalMatches}판 기준 · 가장 오래 한 영웅으로 계산</small></h1>
 ${formatTabs(ctx, '/ow/heroes')}
-${sortReset(ctx)}
 ${stats.heroes.length
   ? html`<div class="table-wrap"><table class="rank-table">
   <thead><tr><th>영웅</th>${sortTh(ctx, 'games', '판수', { def: 'games', cls: 'num' })}${sortTh(ctx, 'pick', '픽률', { def: 'games', cls: 'num' })}${sortTh(ctx, 'winRate', '승률', { def: 'games' })}<th class="num hide-sm">플레이 시간</th><th class="hide-sm">제일 많이 한 사람</th></tr></thead>
