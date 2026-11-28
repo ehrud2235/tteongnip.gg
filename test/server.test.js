@@ -316,6 +316,15 @@ test('오버워치: 업로드, 페이지, 명장면, 계정 연결, 숨기기, �
     const search = await fetch(`${t.base}/search?q=${encodeURIComponent('아나장')}`, { redirect: 'manual' });
     assert.equal(search.headers.get('location'), `/ow/players/${encodeURIComponent('아나장인')}`);
 
+    // 오버워치 화면의 수집기 메뉴는 오버워치 메뉴를 유지한다
+    const owRank = await (await fetch(`${t.base}/ow`)).text();
+    assert.match(owRank, /href="\/collector\?from=ow#overwatch"/);
+    const owCollector = await (await fetch(`${t.base}/collector?from=ow`)).text();
+    assert.match(owCollector, /class="game-ow" aria-current="true"/);
+    assert.match(owCollector, /href="\/ow\/heroes"/);
+    assert.match(await (await fetch(`${t.base}/collector`)).text(), /class="game-lol" aria-current="true"/);
+    const owSearch = await (await fetch(`${t.base}/search?from=ow&q=없는사람`)).text();
+    assert.match(owSearch, /class="game-ow" aria-current="true"/);
     const collector = await (await fetch(`${t.base}/collector`)).text();
     assert.match(collector, /오버워치 내전 기록하기/);
     assert.match(collector, /<span class="share-code">AJJZK<\/span>/);

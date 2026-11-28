@@ -54,7 +54,8 @@ const NAV = {
 
 export function layout(ctx, { title, active = '', body, bare = false, game = 'lol' }) {
   const { config, user } = ctx;
-  const nav = [...(NAV[game] || NAV.lol), ['/collector', '수집기', 'collector']];
+  // 수집기·검색은 두 게임 공용이라, 오버워치에서 들어오면 오버워치 메뉴를 유지한다 (?from=ow)
+  const nav = [...(NAV[game] || NAV.lol), [game === 'ow' ? '/collector?from=ow#overwatch' : '/collector', '수집기', 'collector']];
   const me = user
     ? user.dev
       ? html`<span class="me-dev" title="디스코드 로그인 설정 전이라 모두가 관리자예요">개발 모드</span>`
@@ -85,7 +86,7 @@ export function layout(ctx, { title, active = '', body, bare = false, game = 'lo
     <nav class="nav" aria-label="메뉴">${nav.map(
           ([href, label, key]) => html`<a href="${href}" ${active === key ? html`aria-current="page"` : ''}>${label}</a>`,
         )}</nav>
-    <form class="search" action="/search" role="search"><input type="search" name="q" placeholder="플레이어 검색" aria-label="플레이어 검색" value="${ctx.query || ''}"></form>`}
+    <form class="search" action="/search" role="search">${game === 'ow' ? html`<input type="hidden" name="from" value="ow">` : ''}<input type="search" name="q" placeholder="플레이어 검색" aria-label="플레이어 검색" value="${ctx.query || ''}"></form>`}
     <div class="me">${me}</div>
   </div>
 </header>
@@ -402,6 +403,7 @@ export function collectorPage(ctx, { key, workshop = '' }) {
   const server = ctx.config.baseUrl;
   return layout(ctx, {
     title: '수집기',
+    game: ctx.fromGame,
     active: 'collector',
     body: html`
 <h1>수집기</h1>
@@ -474,6 +476,7 @@ export function messagePage(ctx, { title, message, bare = false }) {
 export function searchPage(ctx, { q, results }) {
   return layout(ctx, {
     title: `"${q}" 검색`,
+    game: ctx.fromGame,
     body: html`<h1>"${q}" 검색 결과</h1>
 ${results.length
   ? html`<ul class="search-results">${results.map(

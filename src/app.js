@@ -236,6 +236,7 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
       query: url.searchParams.get('q') || '',
       path: url.pathname,
       sorts: parseSorts(url),
+      fromGame: url.searchParams.get('from') === 'ow' ? 'ow' : 'lol',
       owTab: OW_TABS.includes(url.searchParams.get('f')) ? url.searchParams.get('f') : 'all',
       get ow() {
         return data.ow[this.owTab];
