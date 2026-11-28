@@ -25,8 +25,7 @@ import {
   playerName,
   playerUrl,
   groupedByDay,
-  adjustedCell,
-  adjustedWinRate,
+  sortReset,
   sortRows,
   sortTh,
   posBadge,
@@ -163,6 +162,7 @@ export function rankingPage(ctx) {
   <div class="card"><small>마지막 내전</small><b>${ctx.dates.ago(stats.lastMatchAt)}</b></div>
   <div class="card"><small>현재 1등</small><b>${top ? top.name : '-'}</b></div>
 </div>
+${sortReset(ctx)}
 ${stats.ranked.length
   ? table(stats.ranked, true)
   : html`<p class="muted">아직 ${stats.minRankedGames}판 이상 한 사람이 없어서 순위가 없어요.</p>`}
@@ -379,10 +379,11 @@ export function championsPage(ctx) {
     active: 'champions',
     body: html`
 <h1>챔피언 통계 <small class="muted">우리 내전 ${stats.totalMatches}판 기준</small></h1>
+${sortReset(ctx)}
 ${stats.champions.length
   ? html`<div class="table-wrap"><table class="rank-table">
-  <thead><tr><th>챔피언</th>${sortTh(ctx, 'games', '판수', { def: 'games', cls: 'num' })}${sortTh(ctx, 'pick', '픽률', { def: 'games', cls: 'num' })}${sortTh(ctx, 'winRate', '승률', { def: 'games' })}${sortTh(ctx, 'overall', '종합', { def: 'games', cls: 'num' })}<th class="num">밴</th><th class="hide-sm">KDA</th><th class="hide-sm">제일 많이 한 사람</th></tr></thead>
-  <tbody>${sortRows(stats.champions, ctx, { games: (c) => c.games, pick: (c) => c.matches.size, winRate: (c) => (c.games ? c.winRate : -1), overall: (c) => (c.games ? adjustedWinRate(c.wins, c.games) : -1) }, 'games').map((c) => {
+  <thead><tr><th>챔피언</th>${sortTh(ctx, 'games', '판수', { def: 'games', cls: 'num' })}${sortTh(ctx, 'pick', '픽률', { def: 'games', cls: 'num' })}${sortTh(ctx, 'winRate', '승률', { def: 'games' })}<th class="num">밴</th><th class="hide-sm">KDA</th><th class="hide-sm">제일 많이 한 사람</th></tr></thead>
+  <tbody>${sortRows(stats.champions, ctx, { games: (c) => c.games, pick: (c) => c.matches.size, winRate: (c) => (c.games ? c.winRate : -1) }, 'games').map((c) => {
     const [bestPuuid, bestGames] = [...c.players.entries()].sort((a, b) => b[1] - a[1])[0] || [];
     const best = bestPuuid ? stats.players.get(bestPuuid) : null;
     return html`<tr>
@@ -390,7 +391,6 @@ ${stats.champions.length
       <td class="num">${c.games}</td>
       <td class="num" title="이 챔피언이 나온 판 비율 (양 팀이 같이 골라도 한 판)">${fmtPct(c.matches.size, total)}</td>
       <td>${c.games ? winRateCell(c.wins, c.games) : html`<span class="muted">-</span>`}</td>
-      <td class="num">${adjustedCell(c.wins, c.games)}</td>
       <td class="num">${c.bans}</td>
       <td class="hide-sm">${c.games ? kdaCell(c.kills, c.deaths, c.assists, c.games) : ''}</td>
       <td class="hide-sm">${best ? html`${playerName(best)} <small class="muted">${bestGames}판</small>` : ''}</td>

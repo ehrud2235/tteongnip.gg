@@ -134,6 +134,19 @@ export function collectorBat({ server, key }) {
 }
 
 const NO_HERO_IMAGES = { portrait: () => null };
+
+/** 표 정렬 기준. ?sort=games.desc,winRate.desc 처럼 최대 두 개 (예전 형식 ?sort=pir&dir=asc 도 받는다) */
+export function parseSorts(url) {
+  const fallbackDir = url.searchParams.get('dir') === 'asc' ? 'asc' : 'desc';
+  return String(url.searchParams.get('sort') || '')
+    .split(',')
+    .map((part) => {
+      const [key, d] = part.split('.');
+      return { key, dir: d === 'asc' || d === 'desc' ? d : fallbackDir };
+    })
+    .filter((x) => /^\w+$/.test(x.key || ''))
+    .slice(0, 2);
+}
 const OW_TABS = ['all', '5v5', '6v6'];
 
 export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetch = globalThis.fetch, log = console }) {
@@ -222,8 +235,7 @@ export function createApp({ config, db, ddragon, owHeroes = NO_HERO_IMAGES, fetc
       assetVersion,
       query: url.searchParams.get('q') || '',
       path: url.pathname,
-      sort: url.searchParams.get('sort') || '',
-      dir: url.searchParams.get('dir') === 'asc' ? 'asc' : 'desc',
+      sorts: parseSorts(url),
       owTab: OW_TABS.includes(url.searchParams.get('f')) ? url.searchParams.get('f') : 'all',
       get ow() {
         return data.ow[this.owTab];

@@ -416,14 +416,14 @@ test('랭킹(점수·승률·PIR)과 영웅 통계(판수·픽률·승률) 정�
     assert.deepEqual([...asc].sort(), [...desc].sort()); // 같은 10명, 순서만 다르다
     assert.notDeepEqual(desc, asc);
     const html = await (await fetch(`${t.base}/ow?sort=winRate&dir=asc`)).text();
-    assert.match(html, /aria-sort="ascending"><a href="\?sort=winRate&amp;dir=desc"/);
+    assert.match(html, /aria-sort="ascending"><a href="\?sort=winRate\.desc"/);
     // 1팀이 2승 1패, 2팀이 1승 2패 → 승률 오름차순이면 2팀 사람이 먼저
     const byWin = names(html);
     assert.ok(['윈스턴', '위도우', '솔저', '메르시', '젠야타'].includes(byWin[0]));
     // 탭(f)이 정렬 링크에 유지된다
-    assert.match(await (await fetch(`${t.base}/ow?f=5v5`)).text(), /href="\?f=5v5&amp;sort=pir&amp;dir=desc"/);
+    assert.match(await (await fetch(`${t.base}/ow?f=5v5`)).text(), /href="\?f=5v5&amp;sort=pir\.desc"/);
     const heroes = await (await fetch(`${t.base}/ow/heroes?sort=pick&dir=asc`)).text();
-    assert.match(heroes, /aria-sort="ascending"><a href="\?sort=pick&amp;dir=desc"/);
+    assert.match(heroes, /aria-sort="ascending"><a href="\?sort=pick\.desc"/);
     // 최근 내전은 날짜별로 묶인 한 줄 목록
     const list = await (await fetch(`${t.base}/ow/matches`)).text();
     assert.match(list, /<h3 class="day">\d{4}\.\d{2}\.\d{2} \(.\)<\/h3>/);
@@ -433,19 +433,36 @@ test('랭킹(점수·승률·PIR)과 영웅 통계(판수·픽률·승률) 정�
   }
 });
 
-test('영웅 통계: 판수와 승률을 같이 본 "종합" 정렬 (1판 1승이 맨 위로 오지 않게)', async () => {
-  const { adjustedWinRate } = await import('../src/views/components.js');
-  assert.equal(adjustedWinRate(1, 1), 57.1);
-  assert.equal(adjustedWinRate(7, 10), 62.5);
-  assert.equal(adjustedWinRate(20, 30), 63.9);
-  assert.ok(adjustedWinRate(20, 30) > adjustedWinRate(1, 1));
-  assert.equal(adjustedWinRate(0, 0), 0);
+test('정렬 두 기준: 판수를 누르고 이어서 승률을 누르면 판수 → 승률 순으로', async () => {
+  const { parseSorts } = await import('../src/app.js');
+  assert.deepEqual(parseSorts(new URL('http://x/?sort=games.desc,winRate.asc')), [{ key: 'games', dir: 'desc' }, { key: 'winRate', dir: 'asc' }]);
+  assert.deepEqual(parseSorts(new URL('http://x/?sort=pir&dir=asc')), [{ key: 'pir', dir: 'asc' }]);
+  assert.equal(parseSorts(new URL('http://x/?sort=a.desc,b.desc,c.desc')).length, 2);
+  const { sortRows } = await import('../src/views/components.js');
+  const rows = [
+    { name: 'A', games: 5, winRate: 40 },
+    { name: 'B', games: 5, winRate: 80 },
+    { name: 'C', games: 9, winRate: 10 },
+    { name: 'D', games: 1, winRate: 100 },
+  ];
+  const fns = { games: (r) => r.games, winRate: (r) => r.winRate };
+  const by = (sorts) => sortRows(rows, { sorts }, fns, 'games').map((r) => r.name).join('');
+  assert.equal(by([{ key: 'games', dir: 'desc' }, { key: 'winRate', dir: 'desc' }]), 'CBAD');
+  assert.equal(by([{ key: 'games', dir: 'desc' }, { key: 'winRate', dir: 'asc' }]), 'CABD');
+  assert.equal(by([{ key: 'winRate', dir: 'desc' }]), 'DBAC');
   const t = await startApp({ UPLOAD_KEY: 'k' });
   try {
     await fetch(`${t.base}/api/collector/overwatch`, { method: 'POST', headers: { authorization: 'Bearer k', 'content-type': 'application/json' }, body: JSON.stringify({ log: makeOwLog() }) });
-    const html = await (await fetch(`${t.base}/ow/heroes?sort=overall&dir=desc`)).text();
-    assert.match(html, /aria-sort="descending"><a href="\?sort=overall&amp;dir=asc"[^>]*>종합/);
-    assert.match(html, /class="adj[^"]*" title="판수와 승률을 같이 본 점수/);
+    // 판수를 누른 상태에서 승률 머리글은 "판수 → 승률" 링크
+    const one = await (await fetch(`${t.base}/ow/heroes?sort=games.desc`)).text();
+    assert.match(one, /href="\?sort=games\.desc%2CwinRate\.desc"[^>]*>승률/);
+    assert.match(one, /정렬 초기화/);
+    const two = await (await fetch(`${t.base}/ow/heroes?sort=games.desc,winRate.desc`)).text();
+    assert.match(two, /<span class="sort-no">1<\/span>판수/);
+    assert.match(two, /<span class="sort-no">2<\/span>승률/);
+    // 승률을 다시 누르면 승률 방향만 바뀐다
+    assert.match(two, /href="\?sort=games\.desc%2CwinRate\.asc"[^>]*><span class="sort-no">2/);
+    assert.doesNotMatch(await (await fetch(`${t.base}/ow/heroes`)).text(), /정렬 초기화/);
   } finally {
     await t.close();
   }

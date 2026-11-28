@@ -473,6 +473,7 @@ th.num.sortable a { justify-content: flex-end; }
   .mr-team li { flex: 0 0 calc((100% - 12px) / 3); gap: 4px; font-size: 12px; }
 }
 
-.adj { font-weight: 700; font-variant-numeric: tabular-nums; cursor: help; }
-.adj.hot { color: var(--red); }
-.adj.cold { color: var(--muted); }
+.sort-no { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); color: #07140c; font-size: 9px; font-weight: 800; margin-right: 3px; }
+.sort-reset { margin: -6px 0 8px; text-align: right; }
+.sort-reset a { color: var(--muted); }
+.sort-reset a:hover { color: var(--text); }
